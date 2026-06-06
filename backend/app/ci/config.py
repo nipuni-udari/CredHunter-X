@@ -63,7 +63,7 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
             ignore_paths=[str(item) for item in filters.get("ignore_paths", [])],
             allow_placeholders=_to_bool(filters.get("allow_placeholders", True)),
         ),
-        backend=BackendConfig(url=backend.get("url")),
+        backend=BackendConfig(url=_optional_string(backend.get("url"))),
     )
 
 
@@ -136,3 +136,10 @@ def _to_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _optional_string(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None

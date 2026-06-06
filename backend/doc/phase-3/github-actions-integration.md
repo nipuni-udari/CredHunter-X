@@ -103,4 +103,10 @@ This is important because the project goal is not only to detect possible leaks,
 
 ## Backend Submission
 
-The GitHub Actions integration prepares the local CI workflow. Backend submission is intentionally deferred to Phase 4 because the FastAPI backend endpoints do not exist yet.
+Backend submission is implemented in Phase 4. If `backend.url` is configured in `.credhunter.yml`, the CI command submits normalized findings to:
+
+```text
+POST /api/scans
+```
+
+If `backend.url` is empty, the CI command runs in local-only mode and still generates JSON, SARIF, GitHub summary, and exit codes.
