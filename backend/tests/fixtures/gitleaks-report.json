@@ -1,0 +1,12 @@
+[
+  {
+    "RuleID": "github-pat",
+    "Description": "GitHub token",
+    "File": "src/config.py",
+    "StartLine": 7,
+    "Secret": "ghp_1234567890abcdef1234567890",
+    "Match": "GITHUB_TOKEN=ghp_1234567890abcdef1234567890",
+    "Entropy": 4.5,
+    "Commit": "abc123"
+  }
+]
