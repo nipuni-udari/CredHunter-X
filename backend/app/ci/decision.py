@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from fnmatch import fnmatch
 
 from app.scanner.models import NormalizedFinding
+from app.services.false_positive_filter import FalsePositiveAssessment, assess_false_positive
 
 from .config import CredHunterConfig
 
@@ -16,12 +16,15 @@ class FindingDecision:
     risk_level: str
     action: str
     reason: str
+    false_positive_assessment: FalsePositiveAssessment | None = None
 
     def to_dict(self) -> dict:
         payload = self.finding.to_dict()
         payload["risk_level"] = self.risk_level
         payload["action"] = self.action
         payload["decision_reason"] = self.reason
+        if self.false_positive_assessment:
+            payload["false_positive_filter"] = self.false_positive_assessment.to_metadata()
         return payload
 
 
@@ -75,19 +78,40 @@ def evaluate_findings(findings: list[NormalizedFinding], config: CredHunterConfi
 
 
 def _evaluate_finding(finding: NormalizedFinding, config: CredHunterConfig) -> FindingDecision:
-    if _is_ignored_path(finding.file_path, config.filters.ignore_paths):
-        return FindingDecision(finding, "low", "ignore", "File path matched configured ignore paths.")
+    assessment = assess_false_positive(finding, config)
+    if assessment.ignored:
+        return FindingDecision(
+            finding,
+            assessment.risk_override or "low",
+            "ignore",
+            " ".join(assessment.reasons),
+            assessment,
+        )
 
     risk_level = _risk_level(finding)
+    if assessment.risk_override and _risk_value(assessment.risk_override) < _risk_value(risk_level):
+        risk_level = assessment.risk_override
     threshold = config.scan.fail_on
 
     if _risk_value(risk_level) >= _risk_value(threshold):
-        return FindingDecision(finding, risk_level, "fail", f"Risk level is at or above fail_on={threshold}.")
+        return FindingDecision(
+            finding,
+            risk_level,
+            "fail",
+            f"Risk level is at or above fail_on={threshold}.",
+            assessment,
+        )
 
     if risk_level in {"medium", "high", "critical"}:
-        return FindingDecision(finding, risk_level, "warn", "Finding is below blocking threshold but should be reviewed.")
+        return FindingDecision(
+            finding,
+            risk_level,
+            "warn",
+            "Finding is below blocking threshold but should be reviewed.",
+            assessment,
+        )
 
-    return FindingDecision(finding, risk_level, "pass", "Finding is low risk for the current threshold.")
+    return FindingDecision(finding, risk_level, "pass", "Finding is low risk for the current threshold.", assessment)
 
 
 def _risk_level(finding: NormalizedFinding) -> str:
@@ -100,11 +124,6 @@ def _risk_level(finding: NormalizedFinding) -> str:
     if finding.confidence >= 0.65:
         return "medium"
     return "low"
-
-
-def _is_ignored_path(file_path: str, ignore_paths: list[str]) -> bool:
-    normalized = file_path.replace("\\", "/")
-    return any(fnmatch(normalized, pattern.replace("\\", "/")) for pattern in ignore_paths)
 
 
 def _risk_value(risk_level: str) -> int:
