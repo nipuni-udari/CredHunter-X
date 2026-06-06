@@ -1,0 +1,38 @@
+name: CredHunter-X
+description: Normalize Gitleaks findings and apply GitHub Actions CI decisions.
+
+inputs:
+  gitleaks_report:
+    description: Path to the Gitleaks JSON or SARIF report.
+    required: false
+    default: ../gitleaks-report.json
+  config:
+    description: Path to CredHunter-X configuration file.
+    required: false
+    default: .credhunter.yml
+  fail_on:
+    description: Risk level that should fail the workflow.
+    required: false
+    default: high
+  json_output:
+    description: Path for CredHunter-X JSON output.
+    required: false
+    default: ../credhunter-report.json
+  sarif_output:
+    description: Path for CredHunter-X SARIF output.
+    required: false
+    default: ../credhunter-report.sarif
+
+runs:
+  using: composite
+  steps:
+    - name: Run CredHunter-X CI decision
+      shell: bash
+      run: |
+        python -m app.ci.cli \
+          --gitleaks-report "${{ inputs.gitleaks_report }}" \
+          --config "${{ inputs.config }}" \
+          --fail-on "${{ inputs.fail_on }}" \
+          --json-output "${{ inputs.json_output }}" \
+          --sarif-output "${{ inputs.sarif_output }}"
+      working-directory: Backend

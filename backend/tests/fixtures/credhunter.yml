@@ -1,0 +1,13 @@
+scan:
+  mode: changed-files
+  fail_on: critical
+  include_history: false
+
+filters:
+  ignore_paths:
+    - docs/**
+    - tests/fixtures/**
+  allow_placeholders: true
+
+backend:
+  url:
