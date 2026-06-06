@@ -4,11 +4,12 @@ import uuid
 from datetime import datetime, timezone
 
 from app.api.schemas import ClassifyFindingRequest, FeedbackRequest, SuppressionRequest
-from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, ScanConfig
+from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig
 from app.ci.decision import evaluate_findings
 from app.repositories.repository import Repository
 
 from .finding_conversion import input_to_normalized_finding
+from .llm_filter_service import LLMFilterService
 from .schema_utils import model_to_dict
 
 
@@ -18,7 +19,9 @@ class FindingService:
 
     def classify_finding(self, request: ClassifyFindingRequest) -> dict:
         finding = input_to_normalized_finding(request.finding)
-        decision = evaluate_findings([finding], _config_from_request(request))
+        config = _config_from_request(request)
+        llm_assessments = LLMFilterService(config).classify_findings([finding], config)
+        decision = evaluate_findings([finding], config, llm_assessments)
         return decision.findings[0].to_dict()
 
     def suppress_finding(self, finding_id: str, request: SuppressionRequest) -> dict | None:
@@ -96,6 +99,12 @@ def _config_from_request(request: ClassifyFindingRequest) -> CredHunterConfig:
             allow_placeholders=config.filters.allow_placeholders,
         ),
         backend=BackendConfig(url=config.backend.url),
+        llm=LLMConfig(
+            enabled=config.llm.enabled,
+            provider=config.llm.provider,
+            model=config.llm.model,
+            min_confidence=config.llm.min_confidence,
+        ),
     )
 
 

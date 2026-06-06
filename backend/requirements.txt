@@ -1,5 +1,6 @@
 fastapi
 httpx
+openai
 pydantic
 pymongo
 uvicorn

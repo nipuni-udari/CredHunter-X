@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from app.core.env import load_local_env
 
 
 @dataclass(slots=True)
@@ -25,19 +28,29 @@ class BackendConfig:
 
 
 @dataclass(slots=True)
+class LLMConfig:
+    enabled: bool = False
+    provider: str = "openai"
+    model: str = "o4-mini"
+    min_confidence: float = 0.8
+
+
+@dataclass(slots=True)
 class CredHunterConfig:
     scan: ScanConfig = field(default_factory=ScanConfig)
     filters: FilterConfig = field(default_factory=FilterConfig)
     backend: BackendConfig = field(default_factory=BackendConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 def load_config(path: str | Path | None) -> CredHunterConfig:
+    load_local_env()
     if not path:
-        return CredHunterConfig()
+        return _with_env_overrides(CredHunterConfig())
 
     config_path = Path(path)
     if not config_path.exists():
-        return CredHunterConfig()
+        return _with_env_overrides(CredHunterConfig())
 
     text = config_path.read_text(encoding="utf-8")
     if config_path.suffix.lower() == ".json":
@@ -45,13 +58,14 @@ def load_config(path: str | Path | None) -> CredHunterConfig:
     else:
         data = _parse_minimal_yaml(text)
 
-    return _from_dict(data)
+    return _with_env_overrides(_from_dict(data))
 
 
 def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
     scan = data.get("scan") or {}
     filters = data.get("filters") or {}
     backend = data.get("backend") or {}
+    llm = data.get("llm") or {}
 
     return CredHunterConfig(
         scan=ScanConfig(
@@ -64,6 +78,12 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
             allow_placeholders=_to_bool(filters.get("allow_placeholders", True)),
         ),
         backend=BackendConfig(url=_optional_string(backend.get("url"))),
+        llm=LLMConfig(
+            enabled=_to_bool(llm.get("enabled", False)),
+            provider=str(llm.get("provider", "openai")),
+            model=str(llm.get("model", "o4-mini")),
+            min_confidence=_to_float(llm.get("min_confidence", 0.8), 0.8),
+        ),
     )
 
 
@@ -143,3 +163,18 @@ def _optional_string(value: Any) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _to_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _with_env_overrides(config: CredHunterConfig) -> CredHunterConfig:
+    if os.getenv("CREDHUNTER_OPENAI_MODEL"):
+        config.llm.model = os.environ["CREDHUNTER_OPENAI_MODEL"]
+    if os.getenv("CREDHUNTER_LLM_ENABLED"):
+        config.llm.enabled = _to_bool(os.environ["CREDHUNTER_LLM_ENABLED"])
+    return config

@@ -39,10 +39,18 @@ class BackendConfigInput(BaseModel):
     url: str | None = None
 
 
+class LLMConfigInput(BaseModel):
+    enabled: bool = False
+    provider: str = "openai"
+    model: str = "o4-mini"
+    min_confidence: float = 0.8
+
+
 class CredHunterConfigInput(BaseModel):
     scan: ScanConfigInput = Field(default_factory=ScanConfigInput)
     filters: FilterConfigInput = Field(default_factory=FilterConfigInput)
     backend: BackendConfigInput = Field(default_factory=BackendConfigInput)
+    llm: LLMConfigInput = Field(default_factory=LLMConfigInput)
 
 
 class ScanCreateRequest(BaseModel):

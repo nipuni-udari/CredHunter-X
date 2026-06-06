@@ -4,11 +4,12 @@ import uuid
 from datetime import datetime, timezone
 
 from app.api.schemas import ScanCreateRequest
-from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, ScanConfig
+from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig
 from app.ci.decision import evaluate_findings
 from app.repositories.repository import Repository
 
 from .finding_conversion import input_to_normalized_finding
+from .llm_filter_service import LLMFilterService
 from .schema_utils import model_to_dict
 
 
@@ -34,7 +35,9 @@ class ScanService:
         }
 
         findings = [input_to_normalized_finding(item) for item in request.findings]
-        decision = evaluate_findings(findings, _config_from_request(request))
+        config = _config_from_request(request)
+        llm_assessments = LLMFilterService(config).classify_findings(findings, config)
+        decision = evaluate_findings(findings, config, llm_assessments)
 
         self.repository.create_project(project)
         self.repository.create_repository(repository_doc)
@@ -105,6 +108,12 @@ def _config_from_request(request: ScanCreateRequest) -> CredHunterConfig:
             allow_placeholders=config.filters.allow_placeholders,
         ),
         backend=BackendConfig(url=config.backend.url),
+        llm=LLMConfig(
+            enabled=config.llm.enabled,
+            provider=config.llm.provider,
+            model=config.llm.model,
+            min_confidence=config.llm.min_confidence,
+        ),
     )
 
 

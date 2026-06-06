@@ -11,3 +11,9 @@ filters:
 
 backend:
   url:
+
+llm:
+  enabled: false
+  provider: openai
+  model: o4-mini
+  min_confidence: 0.8

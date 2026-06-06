@@ -3,6 +3,12 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.env
+.env.*
+!.env.example
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
 Backend/tests/fixtures/generated/
 credhunter-report.json
 credhunter-report.sarif

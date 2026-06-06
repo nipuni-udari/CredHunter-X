@@ -40,6 +40,12 @@ def build_scan_payload(findings: list[NormalizedFinding], config: CredHunterConf
                 "allow_placeholders": config.filters.allow_placeholders,
             },
             "backend": {"url": config.backend.url},
+            "llm": {
+                "enabled": config.llm.enabled,
+                "provider": config.llm.provider,
+                "model": config.llm.model,
+                "min_confidence": config.llm.min_confidence,
+            },
         },
         "metadata": {
             "github_workflow": os.getenv("GITHUB_WORKFLOW"),
