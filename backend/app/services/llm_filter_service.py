@@ -188,7 +188,7 @@ def _validated_classification(result: dict[str, Any], model: str) -> LLMClassifi
 
 
 def _safe_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    blocked = {"secret", "raw_secret", "match", "matched_text"}
+    blocked = {"secret", "raw_secret", "match", "matched_text", "ground_truth", "ground_truth_raw", "label"}
     return {key: value for key, value in metadata.items() if key.lower() not in blocked}
 
 
