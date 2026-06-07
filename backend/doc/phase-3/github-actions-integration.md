@@ -56,6 +56,8 @@ python -m app.ci.cli \
 2: scanner, report, or configuration error
 ```
 
+Manual review findings return exit code `0` unless the configured `fail_on` threshold makes them blocking. They are still shown in the JSON report, SARIF report, and GitHub step summary.
+
 ## Risk Thresholds
 
 The initial Phase 3 risk logic is intentionally simple:
@@ -78,6 +80,8 @@ scan:
 ```
 
 With this setting, high and critical findings fail the workflow.
+
+Phase 8 replaces this simple risk logic with a weighted scoring engine. The GitHub Actions interface remains the same, but reports now include `risk_score` details and a `manual_review` action.
 
 ## Reports
 

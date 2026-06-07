@@ -513,7 +513,7 @@ LLM uncertain: 0
 Decision thresholds:
 
 ```text
-0-29: ignore or low warning
+0-29: pass or ignore
 30-59: warn
 60-79: manual review
 80-100: block pipeline

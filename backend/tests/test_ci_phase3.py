@@ -17,15 +17,15 @@ class CIPhase3Tests(unittest.TestCase):
         self.assertEqual(config.scan.fail_on, "critical")
         self.assertEqual(config.filters.ignore_paths, ["docs/**", "tests/fixtures/**"])
 
-    def test_evaluate_findings_warns_below_threshold(self):
+    def test_evaluate_findings_requires_manual_review_below_critical_threshold(self):
         config = load_config("tests/fixtures/credhunter.yml")
         findings = parse_gitleaks_report("tests/fixtures/gitleaks-report.json")
 
         decision = evaluate_findings(findings, config)
 
-        self.assertEqual(decision.action, "warn")
+        self.assertEqual(decision.action, "manual_review")
         self.assertEqual(decision.exit_code, 0)
-        self.assertEqual(decision.warning_count, 1)
+        self.assertEqual(decision.manual_review_count, 1)
 
     def test_ci_cli_writes_reports_and_fails_on_high(self):
         output_dir = Path("tests/fixtures/generated")
@@ -59,6 +59,7 @@ class CIPhase3Tests(unittest.TestCase):
         payload = json.loads(json_report.read_text(encoding="utf-8"))
         self.assertEqual(payload["action"], "fail")
         self.assertEqual(payload["blocking_count"], 1)
+        self.assertIn("risk_score", payload["findings"][0])
 
     def test_build_backend_scan_payload(self):
         config = load_config("tests/fixtures/credhunter.yml")

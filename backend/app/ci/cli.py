@@ -62,6 +62,7 @@ def _print_console_summary(decision, backend_scan=None) -> None:
         f"action={decision.action}, "
         f"findings={decision.finding_count}, "
         f"blocking={decision.blocking_count}, "
+        f"manual_review={decision.manual_review_count}, "
         f"warnings={decision.warning_count}, "
         f"ignored={decision.ignored_count}"
         f"{scan_text}\n"

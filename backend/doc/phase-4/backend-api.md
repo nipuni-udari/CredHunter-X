@@ -96,6 +96,23 @@ GitHub Actions
 
 The Phase 3 CI command now supports optional backend submission. If `backend.url` is set in `.credhunter.yml`, GitHub Actions posts normalized findings to this API after parsing the Gitleaks report.
 
+## Risk Scoring
+
+Phase 8 adds weighted risk scoring to scan and classification responses. Finding responses include:
+
+```text
+risk_score.score
+risk_score.risk_level
+risk_score.recommended_action
+risk_score.components
+```
+
+Scan decisions also include:
+
+```text
+manual_review_count
+```
+
 ## Example Scan Request
 
 ```json

@@ -75,6 +75,7 @@ class ScanService:
                 "exit_code": decision.exit_code,
                 "finding_count": decision.finding_count,
                 "blocking_count": decision.blocking_count,
+                "manual_review_count": decision.manual_review_count,
                 "warning_count": decision.warning_count,
                 "ignored_count": decision.ignored_count,
             },

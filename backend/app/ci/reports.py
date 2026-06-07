@@ -41,6 +41,7 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
         f"- Final action: `{decision.action}`",
         f"- Total findings: `{decision.finding_count}`",
         f"- Blocking findings: `{decision.blocking_count}`",
+        f"- Manual review findings: `{decision.manual_review_count}`",
         f"- Warning findings: `{decision.warning_count}`",
         f"- Ignored findings: `{decision.ignored_count}`",
         "",
@@ -48,11 +49,12 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
 
     visible = [item for item in decision.findings if item.action != "ignore"]
     if visible:
-        lines.extend(["| Risk | Action | Type | Location |", "| --- | --- | --- | --- |"])
+        lines.extend(["| Score | Risk | Action | Type | Location |", "| --- | --- | --- | --- | --- |"])
         for item in visible:
             finding = item.finding
             location = f"{finding.file_path}:{finding.line_number or 1}"
-            lines.append(f"| {item.risk_level} | {item.action} | {finding.secret_type} | `{location}` |")
+            score = item.risk_score.score if item.risk_score else ""
+            lines.append(f"| {score} | {item.risk_level} | {item.action} | {finding.secret_type} | `{location}` |")
     else:
         lines.append("No reportable findings.")
 
