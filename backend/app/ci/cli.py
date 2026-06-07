@@ -9,7 +9,7 @@ from app.scanner.gitleaks_parser import parse_gitleaks_report
 from .backend_client import BackendSubmissionError, submit_scan_to_backend
 from .config import load_config
 from .decision import evaluate_findings
-from .reports import write_github_summary, write_json_report, write_sarif_report
+from .reports import write_github_summary, write_json_report, write_pr_comment, write_sarif_report
 
 
 CONFIG_ERROR = 2
@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json-output", default="credhunter-report.json", help="Output JSON report path.")
     parser.add_argument("--sarif-output", default="credhunter-report.sarif", help="Output SARIF report path.")
     parser.add_argument("--summary-output", help="Output Markdown summary path. Defaults to GITHUB_STEP_SUMMARY.")
+    parser.add_argument("--pr-comment-output", help="Optional PR comment Markdown output path.")
     parser.add_argument("--fail-on", help="Override configured fail_on threshold.")
 
     args = parser.parse_args(argv)
@@ -44,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
         summary_path = args.summary_output or os.getenv("GITHUB_STEP_SUMMARY")
         if summary_path:
             write_github_summary(decision, summary_path)
+        if args.pr_comment_output:
+            write_pr_comment(decision, args.pr_comment_output)
 
         _print_console_summary(decision, backend_scan)
         return decision.exit_code

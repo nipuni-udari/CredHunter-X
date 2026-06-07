@@ -22,6 +22,10 @@ inputs:
     description: Path for CredHunter-X SARIF output.
     required: false
     default: ../credhunter-report.sarif
+  pr_comment_output:
+    description: Path for CredHunter-X PR comment Markdown output.
+    required: false
+    default: ../credhunter-pr-comment.md
 
 runs:
   using: composite
@@ -34,5 +38,6 @@ runs:
           --config "${{ inputs.config }}" \
           --fail-on "${{ inputs.fail_on }}" \
           --json-output "${{ inputs.json_output }}" \
-          --sarif-output "${{ inputs.sarif_output }}"
+          --sarif-output "${{ inputs.sarif_output }}" \
+          --pr-comment-output "${{ inputs.pr_comment_output }}"
       working-directory: Backend

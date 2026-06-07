@@ -5,8 +5,13 @@ from datetime import datetime, timezone
 
 from app.api.schemas import ScanCreateRequest
 from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig, ValidationConfig
-from app.ci.decision import evaluate_findings
+from app.ci.decision import CIDecision, FindingDecision, evaluate_findings
 from app.repositories.repository import Repository
+from app.scanner.models import NormalizedFinding
+from app.services.false_positive_filter import FalsePositiveAssessment
+from app.services.llm_filter_service import LLMClassification
+from app.services.risk_scoring_service import RiskComponent, RiskScore
+from app.services.validation_service import ValidationResult
 
 from .finding_conversion import input_to_normalized_finding
 from .llm_filter_service import LLMFilterService
@@ -95,6 +100,24 @@ class ScanService:
         )
         return scan
 
+    def get_scan_decision(self, scan_id: str) -> CIDecision | None:
+        scan = self.repository.get_scan(scan_id)
+        if not scan:
+            return None
+
+        findings = [_decision_from_stored_finding(item) for item in scan.get("findings", [])]
+        decision_doc = scan.get("decision", {})
+        return CIDecision(
+            action=decision_doc.get("action", "pass"),
+            exit_code=int(decision_doc.get("exit_code", 0)),
+            finding_count=int(decision_doc.get("finding_count", len(findings))),
+            blocking_count=int(decision_doc.get("blocking_count", 0)),
+            warning_count=int(decision_doc.get("warning_count", 0)),
+            manual_review_count=int(decision_doc.get("manual_review_count", 0)),
+            ignored_count=int(decision_doc.get("ignored_count", 0)),
+            findings=findings,
+        )
+
 
 def _config_from_request(request: ScanCreateRequest) -> CredHunterConfig:
     config = request.config
@@ -126,3 +149,96 @@ def _config_from_request(request: ScanCreateRequest) -> CredHunterConfig:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _decision_from_stored_finding(payload: dict) -> FindingDecision:
+    finding_keys = {
+        "finding_id",
+        "detector",
+        "secret_type",
+        "file_path",
+        "line_number",
+        "redacted_secret",
+        "secret_hash",
+        "confidence",
+        "entropy",
+        "commit_sha",
+        "rule_id",
+        "description",
+        "context_before",
+        "context_after",
+        "source",
+        "metadata",
+    }
+    finding_payload = {key: payload.get(key) for key in finding_keys}
+    finding_payload["metadata"] = finding_payload.get("metadata") or {}
+    finding = NormalizedFinding(**finding_payload)
+    return FindingDecision(
+        finding=finding,
+        risk_level=payload.get("risk_level", "low"),
+        action=payload.get("action", "pass"),
+        reason=payload.get("decision_reason", ""),
+        false_positive_assessment=_false_positive_from_payload(payload.get("false_positive_filter")),
+        llm_classification=_llm_from_payload(payload.get("llm_filter")),
+        risk_score=_risk_score_from_payload(payload.get("risk_score")),
+        validation_result=_validation_from_payload(payload.get("validation")),
+    )
+
+
+def _false_positive_from_payload(payload: dict | None) -> FalsePositiveAssessment | None:
+    if not payload:
+        return None
+    return FalsePositiveAssessment(
+        classification=payload.get("classification", "uncertain"),
+        ignored=bool(payload.get("ignored", False)),
+        risk_override=payload.get("risk_override"),
+        reasons=list(payload.get("reasons") or []),
+        signals=dict(payload.get("signals") or {}),
+    )
+
+
+def _llm_from_payload(payload: dict | None) -> LLMClassification | None:
+    if not payload:
+        return None
+    return LLMClassification(
+        classification=payload.get("classification", "uncertain"),
+        confidence=float(payload.get("confidence", 0.0)),
+        reason=payload.get("reason", ""),
+        recommended_action=payload.get("recommended_action", "keep_rule_decision"),
+        model=payload.get("model", ""),
+        used=bool(payload.get("used", False)),
+        skipped_reason=payload.get("skipped_reason"),
+        metadata=dict(payload.get("metadata") or {}),
+    )
+
+
+def _risk_score_from_payload(payload: dict | None) -> RiskScore | None:
+    if not payload:
+        return None
+    return RiskScore(
+        score=int(payload.get("score", 0)),
+        risk_level=payload.get("risk_level", "low"),
+        recommended_action=payload.get("recommended_action", "pass"),
+        components=[
+            RiskComponent(
+                name=item.get("name", ""),
+                value=int(item.get("value", 0)),
+                reason=item.get("reason", ""),
+            )
+            for item in payload.get("components", [])
+        ],
+    )
+
+
+def _validation_from_payload(payload: dict | None) -> ValidationResult | None:
+    if not payload:
+        return None
+    return ValidationResult(
+        provider=payload.get("provider", ""),
+        status=payload.get("status", ""),
+        active=payload.get("active"),
+        reason=payload.get("reason", ""),
+        checked=bool(payload.get("checked", False)),
+        network_used=bool(payload.get("network_used", False)),
+        metadata=dict(payload.get("metadata") or {}),
+    )

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.schemas import ScanCreateRequest
 from app.repositories.repository import Repository
+from app.reporting.markdown import build_pr_comment
 from app.services.scan_service import ScanService
 
 from .dependencies import get_repository
@@ -26,3 +27,12 @@ def get_scan(scan_id: str, repository: Repository = Depends(get_repository)) -> 
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan
+
+
+@router.get("/scans/{scan_id}/pr-comment")
+def get_scan_pr_comment(scan_id: str, repository: Repository = Depends(get_repository)) -> dict:
+    service = ScanService(repository)
+    decision = service.get_scan_decision(scan_id)
+    if not decision:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return {"scan_id": scan_id, "markdown": build_pr_comment(decision)}

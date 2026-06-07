@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.reporting.markdown import build_pr_comment
+
 from .decision import CIDecision
 
 
@@ -63,6 +65,12 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_pr_comment(decision: CIDecision, path: str | Path) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(build_pr_comment(decision), encoding="utf-8")
+
+
 def _sarif_rules(decision: CIDecision) -> list[dict]:
     rules = {}
     for item in decision.findings:
@@ -94,6 +102,7 @@ def _sarif_result(item) -> dict:
         "properties": {
             "credhunter_action": item.action,
             "credhunter_finding_id": finding.finding_id,
+            "credhunter_risk_score": item.risk_score.score if item.risk_score else None,
             "redacted_secret": finding.redacted_secret,
         },
     }
