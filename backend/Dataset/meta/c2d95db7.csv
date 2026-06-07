@@ -1,0 +1,4 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+100172,5139694b,GitHub,c2d95db7,data/c2d95db7/conf/5139694b.py,96,96,F,,,,,Auth
+130008,5139694b,GitHub,c2d95db7,data/c2d95db7/conf/5139694b.py,117,117,F,,,,,Password
+11530467,5139694b,GitHub,c2d95db7,data/c2d95db7/conf/5139694b.py,109,109,F,25,53,,,Password

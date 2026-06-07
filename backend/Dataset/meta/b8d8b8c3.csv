@@ -1,0 +1,10 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+2831,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,162,162,F,,,,,Token
+3056,51274e21,GitHub,b8d8b8c3,data/b8d8b8c3/src/51274e21.py,198,198,F,,,,,Key
+20665,c8f2f66c,GitHub,b8d8b8c3,data/b8d8b8c3/test/c8f2f66c.py,52,52,F,,,,,Key
+27764,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,149,149,T,25,81,,,Token
+31394,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,63,63,X,48,58,,,Token
+31395,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,77,77,X,44,54,,,Token
+100686,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,87,87,X,28,34,,,Secret
+134348,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,128,128,T,29,85,,,Token
+134349,7513cc5c,GitHub,b8d8b8c3,data/b8d8b8c3/test/7513cc5c.py,136,136,T,30,86,,,Token

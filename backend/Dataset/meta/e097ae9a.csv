@@ -1,0 +1,11 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+2179,89b7f088,GitHub,e097ae9a,data/e097ae9a/test/python/89b7f088.py,12,12,F,,,,,Token
+2180,7a406203,GitHub,e097ae9a,data/e097ae9a/test/python/7a406203.py,12,12,F,,,,,Token
+16534,61df98c3,GitHub,e097ae9a,data/e097ae9a/test/python/61df98c3.py,22,22,F,,,,,Auth
+18652,736e58fd,GitHub,e097ae9a,data/e097ae9a/test/python/736e58fd.py,23,23,F,,,,,Auth
+49990,736e58fd,GitHub,e097ae9a,data/e097ae9a/test/python/736e58fd.py,11,11,F,,,,,API
+49991,89b7f088,GitHub,e097ae9a,data/e097ae9a/test/python/89b7f088.py,11,11,F,,,,,API
+52364,89b7f088,GitHub,e097ae9a,data/e097ae9a/test/python/89b7f088.py,23,23,F,,,,,Auth
+55964,7a406203,GitHub,e097ae9a,data/e097ae9a/test/python/7a406203.py,22,22,F,,,,,Auth
+64192,61df98c3,GitHub,e097ae9a,data/e097ae9a/test/python/61df98c3.py,12,12,F,,,,,Token
+64193,736e58fd,GitHub,e097ae9a,data/e097ae9a/test/python/736e58fd.py,12,12,F,,,,,Token

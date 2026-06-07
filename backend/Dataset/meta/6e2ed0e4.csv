@@ -1,0 +1,4 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+1524,3046a149,GitHub,6e2ed0e4,data/6e2ed0e4/_/3046a149.py,7,7,F,,,,,Password
+25137,7588ba51,GitHub,6e2ed0e4,data/6e2ed0e4/example/setting/app/7588ba51.py,31,31,F,,,,,Secret
+131607,3046a149,GitHub,6e2ed0e4,data/6e2ed0e4/_/3046a149.py,11,11,F,,,,,Password

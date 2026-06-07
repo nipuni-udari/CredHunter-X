@@ -1,0 +1,18 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+11536705,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,41,41,F,31,35,,,Secret
+11536706,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,43,43,F,23,27,,,Secret
+11536707,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,52,52,F,31,35,,,Secret
+11536708,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,53,53,F,31,35,,,Secret
+11536709,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,25,51,T,9,29,,,PEM Private Key
+11536710,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,76,76,F,31,35,,,Secret
+11536711,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,78,78,F,23,27,,,Secret
+11536712,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,86,86,F,31,35,,,Secret
+11536713,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,87,87,F,31,35,,,Secret
+11536736,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,39,39,F,27,33,,,Secret
+11536737,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,50,50,F,27,33,,,Secret
+11536738,8644694b,GitHub,10e03406,data/10e03406/test/secret/8644694b.py,231,231,F,43,47,,,Key
+11536739,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,74,74,F,27,33,,,Secret
+11536740,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,84,84,F,27,33,,,Secret
+11536741,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,248,248,F,43,47,,,Key
+11536742,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,291,291,F,19,36,,,Secret
+11536743,fd8cb0ea,GitHub,10e03406,data/10e03406/test/secret/fd8cb0ea.py,327,327,F,19,36,,,Secret

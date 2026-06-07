@@ -1,0 +1,13 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+484,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,29,29,F,,,,,API:Token
+485,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,30,30,F,,,,,API:Key
+486,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,30,30,F,,,,,API:Key
+8516,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,147,147,F,,,,,API
+42019,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,29,29,F,,,,,API:Token
+42020,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,339,339,F,,,,,API:Token
+42021,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,341,341,F,,,,,API:Token
+42239,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,339,339,F,,,,,API:Token
+42240,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,341,341,F,,,,,API:Token
+75216,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,147,147,F,,,,,API
+11529691,137e5c87,GitHub,b133f43d,data/b133f43d/_/137e5c87.py,149,149,F,42,52,,,Auth
+11529692,2ca01fd6,GitHub,b133f43d,data/b133f43d/_/2ca01fd6.py,149,149,F,42,52,,,Auth

@@ -1,0 +1,19 @@
+# -*- coding: utf-8 -*-
+'''
+Created on 2016-10-20
+
+@author: hustcc
+'''
+
+# for sqlite
+# DATABASE_URI = 'sqlite:///git_webhook.db'
+# for mysql
+DATABASE_URI = 'mysql+pymysql://root:idqg@mysql/git_webhook'
+
+CELERY_BROKER_URL = 'redis://:@redis:6379/0'
+CELERY_RESULT_BACKEND = 'redis://:@redis:6379/0'
+
+SOCKET_MESSAGE_QUEUE = 'redis://:@redis:6379/0'
+
+GITHUB_CLIENT_ID = 'b6e751cc48d664240467'
+GITHUB_CLIENT_SECRET = '7c6e3fcfda6aa49b9c3c68497d49a7bb4b99d805'

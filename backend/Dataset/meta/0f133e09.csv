@@ -1,0 +1,60 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+322,fd19dc90,GitHub,0f133e09,data/0f133e09/public/fd19dc90.py,39,39,F,,,,,Secret
+2893,544d9560,GitHub,0f133e09,data/0f133e09/_/544d9560.py,263,263,F,,,,,Key
+7953,03c77d4f,GitHub,0f133e09,data/0f133e09/_/03c77d4f.py,316,316,F,,,,,Token
+8232,d1362af0,GitHub,0f133e09,data/0f133e09/test/d1362af0.py,63,63,F,,,,,Dropbox App secret
+8525,d90d9e92,GitHub,0f133e09,data/0f133e09/test/d90d9e92.py,78,78,F,,,,,Auth
+8546,ec27d4ca,GitHub,0f133e09,data/0f133e09/test/ec27d4ca.py,92,92,F,,,,,Password
+8547,ec27d4ca,GitHub,0f133e09,data/0f133e09/test/ec27d4ca.py,129,129,F,,,,,Password
+8613,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,806,806,F,,,,,Key
+8630,ec27d4ca,GitHub,0f133e09,data/0f133e09/test/ec27d4ca.py,37,37,F,,,,,Password
+8647,ec27d4ca,GitHub,0f133e09,data/0f133e09/test/ec27d4ca.py,64,64,F,,,,,Password
+11450,03c77d4f,GitHub,0f133e09,data/0f133e09/_/03c77d4f.py,308,308,F,,,,,Token
+11563,22f5eaf1,GitHub,0f133e09,data/0f133e09/test/22f5eaf1.py,139,139,F,,,,,Key
+16482,8d612764,GitHub,0f133e09,data/0f133e09/test/8d612764.py,792,792,F,,,,,Jira / Confluence PAT token
+16483,8d612764,GitHub,0f133e09,data/0f133e09/test/8d612764.py,445,445,F,,,,,Jira / Confluence PAT token
+16484,8d612764,GitHub,0f133e09,data/0f133e09/test/8d612764.py,475,475,F,,,,,Jira / Confluence PAT token
+17637,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,802,802,F,,,,,Key
+17643,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,110,110,F,,,,,Password
+17644,a9cdf635,GitHub,0f133e09,data/0f133e09/_/a9cdf635.py,444,444,F,,,,,Password
+17645,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,109,109,F,,,,,Token
+17652,a9cdf635,GitHub,0f133e09,data/0f133e09/_/a9cdf635.py,534,534,F,,,,,Key
+17680,0ccc1045,GitHub,0f133e09,data/0f133e09/_/0ccc1045.py,1464,1464,F,,,,,Password
+20168,d27bec8f,GitHub,0f133e09,data/0f133e09/test/d27bec8f.py,64,64,F,,,,,Auth
+20171,d27bec8f,GitHub,0f133e09,data/0f133e09/test/d27bec8f.py,54,54,F,,,,,Auth
+20172,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,95,95,T,123,143,,aws-id,AWS Client ID
+1020172,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,95,95,T,123,186,,aws-id,Credential
+136761,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,95,95,F,123,313,,short-therm-signature,AWS Multi
+136760,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,95,95,T,21,50,,info,AWS S3 Bucket
+20680,0ccc1045,GitHub,0f133e09,data/0f133e09/_/0ccc1045.py,1236,1236,F,,,,,Key
+23378,03c77d4f,GitHub,0f133e09,data/0f133e09/_/03c77d4f.py,241,241,F,,,,,Key
+29536,5e62348b,GitHub,0f133e09,data/0f133e09/test/app/5e62348b.py,30,30,X,30,51,,,Secret
+30738,d90d9e92,GitHub,0f133e09,data/0f133e09/test/d90d9e92.py,375,375,F,27,67,,digits_only-test,Secret
+34714,cd589265,GitHub,0f133e09,data/0f133e09/test/cd589265.py,281,281,X,29,37,,,Password
+34731,cd589265,GitHub,0f133e09,data/0f133e09/test/cd589265.py,282,282,X,32,43,,,Auth:Token
+35294,22f5eaf1,GitHub,0f133e09,data/0f133e09/test/22f5eaf1.py,13,27,T,,,Private,,PEM Private Key
+36195,22f5eaf1,GitHub,0f133e09,data/0f133e09/test/22f5eaf1.py,69,69,T,32,75,,,Token
+36398,9d2d157d,GitHub,0f133e09,data/0f133e09/test/public/9d2d157d.py,42,42,T,57,101,,,Key
+37724,9d2d157d,GitHub,0f133e09,data/0f133e09/test/public/9d2d157d.py,53,53,T,55,99,,,Key
+54576,a9cdf635,GitHub,0f133e09,data/0f133e09/_/a9cdf635.py,541,541,F,,,,,Key
+57320,0ccc1045,GitHub,0f133e09,data/0f133e09/_/0ccc1045.py,1227,1227,F,,,,,Key
+57321,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,214,214,F,,,,,Key
+79003,22f5eaf1,GitHub,0f133e09,data/0f133e09/test/22f5eaf1.py,31,36,F,,,,,PEM Private Key
+113958,d266e2f8,GitHub,0f133e09,data/0f133e09/test/d266e2f8.py,142,142,F,,,,,Auth
+135029,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,819,819,F,,,,,Key
+135030,5e62348b,GitHub,0f133e09,data/0f133e09/test/app/5e62348b.py,65,65,F,,,,,Token
+1359693,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,64,64,T,47,83,,,UUID
+1479613,03c77d4f,GitHub,0f133e09,data/0f133e09/_/03c77d4f.py,314,314,F,49,54,,,Auth
+1480549,03cdc0c5,GitHub,0f133e09,data/0f133e09/test/03cdc0c5.py,95,95,T,397,433,,,UUID
+1481079,09d5fb97,GitHub,0f133e09,data/0f133e09/test/09d5fb97.py,76,76,F,39,47,,not-basic-auth,Auth:Basic Authorization
+11494760,09d5fb97,GitHub,0f133e09,data/0f133e09/test/09d5fb97.py,41,41,F,74,100,,,Basic Authorization
+11494761,09d5fb97,GitHub,0f133e09,data/0f133e09/test/09d5fb97.py,45,45,F,74,100,,,Basic Authorization
+11494762,09d5fb97,GitHub,0f133e09,data/0f133e09/test/09d5fb97.py,49,49,F,74,100,,,Basic Authorization
+11494763,09d5fb97,GitHub,0f133e09,data/0f133e09/test/09d5fb97.py,53,53,F,74,100,,,Basic Authorization
+11495192,cd589265,GitHub,0f133e09,data/0f133e09/test/cd589265.py,81,81,F,46,72,,,Basic Authorization
+11524705,03c77d4f,GitHub,0f133e09,data/0f133e09/_/03c77d4f.py,319,319,F,50,55,,,Auth
+11524707,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,840,840,F,42,61,,,Auth
+11524708,cd558fc3,GitHub,0f133e09,data/0f133e09/_/cd558fc3.py,874,874,F,38,57,,,Auth
+11524709,fd19dc90,GitHub,0f133e09,data/0f133e09/public/fd19dc90.py,41,41,F,53,58,,,Key
+11524734,9d2d157d,GitHub,0f133e09,data/0f133e09/test/public/9d2d157d.py,42,42,F,31,49,,,Key
+11524735,9d2d157d,GitHub,0f133e09,data/0f133e09/test/public/9d2d157d.py,53,53,F,30,48,,,Key

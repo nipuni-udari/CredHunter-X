@@ -1,0 +1,10 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+1000006,06b6094c,GitHub,0ce78112,data/0ce78112/setting/lib/06b6094c.py,291,291,F,27,45,,,Token
+1000007,06b6094c,GitHub,0ce78112,data/0ce78112/setting/lib/06b6094c.py,292,292,F,31,37,,,Key
+1002405,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,199,199,F,27,33,,,API
+1002406,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,231,231,F,33,39,,,API
+1002407,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,292,292,F,38,44,,,Token
+1112556,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,292,292,F,61,67,,,API
+1112657,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,293,293,F,64,70,,,API
+1002412,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,674,674,F,53,59,,,API
+11524700,ee2febb0,GitHub,0ce78112,data/0ce78112/lib/ee2febb0.py,196,196,F,34,39,,,Token

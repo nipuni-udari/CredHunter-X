@@ -1,0 +1,14 @@
+{
+  "output": "C:\\Users\\HP\\Desktop\\dataset\\CredData-python\\processed\\creddata_python_eval.jsonl",
+  "context_window": 10,
+  "records": 4387,
+  "labels": {
+    "true_secret": 654,
+    "false_positive": 3733
+  },
+  "raw_ground_truth": {
+    "T": 654,
+    "F": 3107,
+    "X": 626
+  }
+}

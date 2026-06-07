@@ -1,0 +1,6 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+8914,a5101cea,GitHub,942d502d,data/942d502d/_/a5101cea.py,256,256,F,,,,,Key
+11999,6cbf58ce,GitHub,942d502d,data/942d502d/conf/docker/6cbf58ce.py,201,201,F,,,,,Key
+13755,36cc6c45,GitHub,942d502d,data/942d502d/conf/docker/36cc6c45.py,79,79,F,,,,,Key
+74508,36cc6c45,GitHub,942d502d,data/942d502d/conf/docker/36cc6c45.py,201,201,F,,,,,Key
+75140,6cbf58ce,GitHub,942d502d,data/942d502d/conf/docker/6cbf58ce.py,79,79,F,,,,,Key

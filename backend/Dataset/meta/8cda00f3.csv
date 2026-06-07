@@ -1,0 +1,6 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+25145,b0e56910,GitHub,8cda00f3,data/8cda00f3/conf/setting/docker/opt/b0e56910.py,208,208,F,,,,,Secret:Key
+29279,63c26c9a,GitHub,8cda00f3,data/8cda00f3/setting/docker/63c26c9a.py,40,40,T,22,41,,,Password
+40720,b0e56910,GitHub,8cda00f3,data/8cda00f3/conf/setting/docker/opt/b0e56910.py,13,13,X,15,29,,,Key:Secret
+107374,63c26c9a,GitHub,8cda00f3,data/8cda00f3/setting/docker/63c26c9a.py,33,33,X,19,44,,,Password
+107377,b0e56910,GitHub,8cda00f3,data/8cda00f3/conf/setting/docker/opt/b0e56910.py,108,108,X,19,44,,,Password

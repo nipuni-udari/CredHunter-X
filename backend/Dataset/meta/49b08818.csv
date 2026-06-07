@@ -1,0 +1,13 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+15090,197c2ce6,GitHub,49b08818,data/49b08818/fixture/python/197c2ce6.py,4,4,T,13,18,,,Secret
+15410,fbad69af,GitHub,49b08818,data/49b08818/fixture/python/fbad69af.py,5,5,T,24,33,,,Password
+16596,0fa02ca1,GitHub,49b08818,data/49b08818/fixture/python/0fa02ca1.py,5,5,F,,,,,Auth
+23154,b4b1e510,GitHub,49b08818,data/49b08818/fixture/python/b4b1e510.py,4,4,F,,,,,API:Token
+29190,5ac249ea,GitHub,49b08818,data/49b08818/fixture/python/5ac249ea.py,4,4,X,18,33,,,Key:API
+29191,032e3050,GitHub,49b08818,data/49b08818/fixture/python/032e3050.py,4,4,X,18,27,,,API:Key
+31068,af53983f,GitHub,49b08818,data/49b08818/fixture/python/af53983f.py,5,5,X,12,19,,,Key
+31443,17c30e05,GitHub,49b08818,data/49b08818/fixture/python/17c30e05.py,4,4,F,24,122,,,Auth
+32311,ed043ee1,GitHub,49b08818,data/49b08818/fixture/python/ed043ee1.py,8,8,T,46,57,,,Password
+36244,31b87c9d,GitHub,49b08818,data/49b08818/fixture/python/31b87c9d.py,5,5,T,19,51,,,Token
+36347,0fa02ca1,GitHub,49b08818,data/49b08818/fixture/python/0fa02ca1.py,6,6,T,15,23,,,Password:Auth
+36374,17c30e05,GitHub,49b08818,data/49b08818/fixture/python/17c30e05.py,10,10,T,18,305,,,Key

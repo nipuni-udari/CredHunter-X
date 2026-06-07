@@ -1,0 +1,8 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+849,799a8451,GitHub,20b9d2a4,data/20b9d2a4/python/799a8451.py,14,14,F,,,,,Key
+873,0a436130,GitHub,20b9d2a4,data/20b9d2a4/python/0a436130.py,14,14,F,,,,,Key
+874,ed252728,GitHub,20b9d2a4,data/20b9d2a4/python/ed252728.py,21,21,F,,,,,Key
+875,0b530157,GitHub,20b9d2a4,data/20b9d2a4/python/0b530157.py,21,21,F,,,,,Key
+6225,b1face42,GitHub,20b9d2a4,data/20b9d2a4/python/b1face42.py,10,10,F,,,,,Key
+13713,1d0e8c01,GitHub,20b9d2a4,data/20b9d2a4/python/1d0e8c01.py,14,14,F,,,,,Key
+13714,5f33b50a,GitHub,20b9d2a4,data/20b9d2a4/client/python/5f33b50a.py,31,31,F,,,,,Key

@@ -1,0 +1,14 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+374,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,68,68,F,,,,,Token
+2474,60691956,GitHub,63800a10,data/63800a10/_/60691956.py,160,160,F,,,,,Key
+7211,60691956,GitHub,63800a10,data/63800a10/_/60691956.py,135,135,F,,,,,Token
+7597,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,81,81,F,,,,,Token
+7955,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,63,63,F,,,,,Token
+14321,f9839c9a,GitHub,63800a10,data/63800a10/_/f9839c9a.py,214,214,F,,,,,Token
+108509,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,46,46,F,,,,,Secret
+108510,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,48,48,F,,,,,Secret
+11527584,60691956,GitHub,63800a10,data/63800a10/_/60691956.py,159,159,F,22,30,,,API
+11527585,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,22,22,F,20,24,,,Token
+11527586,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,23,23,F,22,26,,,Secret
+11527587,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,32,32,F,24,28,,,Token
+11527588,e002928e,GitHub,63800a10,data/63800a10/_/e002928e.py,35,35,F,26,30,,,Secret

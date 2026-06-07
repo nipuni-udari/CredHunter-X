@@ -1,0 +1,8 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+7683,bb9e885f,GitHub,a0cd6261,data/a0cd6261/_/bb9e885f.py,67,67,F,,,,,Key:Token
+7684,bb9e885f,GitHub,a0cd6261,data/a0cd6261/_/bb9e885f.py,103,103,F,,,,,Key:Token
+20655,22992375,GitHub,a0cd6261,data/a0cd6261/_/22992375.py,84,84,F,,,,,Password
+21667,c12b6bc6,GitHub,a0cd6261,data/a0cd6261/secure/c12b6bc6.py,14,14,F,,,,,Key
+34158,098ad69f,GitHub,a0cd6261,data/a0cd6261/_/098ad69f.py,249,249,F,61,77,,,Key:Token
+36051,22992375,GitHub,a0cd6261,data/a0cd6261/_/22992375.py,105,105,T,16,24,,,Password
+41551,098ad69f,GitHub,a0cd6261,data/a0cd6261/_/098ad69f.py,143,143,F,,,,,Key

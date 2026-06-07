@@ -1,0 +1,11 @@
+Id,FileID,Domain,RepoName,FilePath,LineStart,LineEnd,GroundTruth,ValueStart,ValueEnd,CryptographyKey,PredefinedPattern,Category
+898,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,384,384,F,,,,,Key
+899,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,567,567,F,,,,,Key
+16827,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,418,418,F,,,,,Key
+18759,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,340,340,F,,,,,Secret
+22554,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,286,286,F,,,,,Auth
+33794,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,29,29,T,10,42,,,Secret
+48006,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,519,519,F,,,,,Secret
+64004,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,392,392,F,,,,,Key
+134381,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,368,368,F,,,,,Secret
+11530473,476936d5,GitHub,c41bb134,data/c41bb134/test/476936d5.py,404,404,F,26,36,,,Key
