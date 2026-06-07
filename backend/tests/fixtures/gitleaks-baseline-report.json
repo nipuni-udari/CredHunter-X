@@ -1,0 +1,10 @@
+[
+  {
+    "RuleID": "generic-api-key",
+    "Description": "Synthetic baseline true positive",
+    "File": "data/02dfa7ec/test/setting/e43ec22b.py",
+    "StartLine": 15,
+    "Secret": "redacted",
+    "Entropy": 3.5
+  }
+]
