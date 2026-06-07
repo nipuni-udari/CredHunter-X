@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.schemas import ClassifyFindingRequest, FeedbackRequest, SuppressionRequest
+from app.api.schemas import ClassifyFindingRequest, FeedbackRequest, SuppressionRequest, ValidateFindingRequest
 from app.repositories.repository import Repository
 from app.services.finding_service import FindingService
 
@@ -18,6 +18,15 @@ def classify_finding(
 ) -> dict:
     service = FindingService(repository)
     return service.classify_finding(request)
+
+
+@router.post("/findings/validate")
+def validate_finding(
+    request: ValidateFindingRequest,
+    repository: Repository = Depends(get_repository),
+) -> dict:
+    service = FindingService(repository)
+    return service.validate_finding(request)
 
 
 @router.post("/findings/{finding_id}/suppress")

@@ -46,11 +46,19 @@ class LLMConfigInput(BaseModel):
     min_confidence: float = 0.8
 
 
+class ValidationConfigInput(BaseModel):
+    enabled: bool = False
+    network_enabled: bool = False
+    providers: list[str] = Field(default_factory=lambda: ["github", "jwt", "database_url"])
+    timeout_seconds: float = 5.0
+
+
 class CredHunterConfigInput(BaseModel):
     scan: ScanConfigInput = Field(default_factory=ScanConfigInput)
     filters: FilterConfigInput = Field(default_factory=FilterConfigInput)
     backend: BackendConfigInput = Field(default_factory=BackendConfigInput)
     llm: LLMConfigInput = Field(default_factory=LLMConfigInput)
+    validation: ValidationConfigInput = Field(default_factory=ValidationConfigInput)
 
 
 class ScanCreateRequest(BaseModel):
@@ -69,6 +77,12 @@ class ScanCreateRequest(BaseModel):
 
 class ClassifyFindingRequest(BaseModel):
     finding: FindingInput
+    config: CredHunterConfigInput = Field(default_factory=CredHunterConfigInput)
+
+
+class ValidateFindingRequest(BaseModel):
+    finding: FindingInput
+    raw_secret: str | None = None
     config: CredHunterConfigInput = Field(default_factory=CredHunterConfigInput)
 
 

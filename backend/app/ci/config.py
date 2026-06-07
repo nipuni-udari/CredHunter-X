@@ -36,11 +36,20 @@ class LLMConfig:
 
 
 @dataclass(slots=True)
+class ValidationConfig:
+    enabled: bool = False
+    network_enabled: bool = False
+    providers: list[str] = field(default_factory=lambda: ["github", "jwt", "database_url"])
+    timeout_seconds: float = 5.0
+
+
+@dataclass(slots=True)
 class CredHunterConfig:
     scan: ScanConfig = field(default_factory=ScanConfig)
     filters: FilterConfig = field(default_factory=FilterConfig)
     backend: BackendConfig = field(default_factory=BackendConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
+    validation: ValidationConfig = field(default_factory=ValidationConfig)
 
 
 def load_config(path: str | Path | None) -> CredHunterConfig:
@@ -66,6 +75,7 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
     filters = data.get("filters") or {}
     backend = data.get("backend") or {}
     llm = data.get("llm") or {}
+    validation = data.get("validation") or {}
 
     return CredHunterConfig(
         scan=ScanConfig(
@@ -83,6 +93,12 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
             provider=str(llm.get("provider", "openai")),
             model=str(llm.get("model", "o4-mini")),
             min_confidence=_to_float(llm.get("min_confidence", 0.8), 0.8),
+        ),
+        validation=ValidationConfig(
+            enabled=_to_bool(validation.get("enabled", False)),
+            network_enabled=_to_bool(validation.get("network_enabled", False)),
+            providers=[str(item) for item in validation.get("providers", ["github", "jwt", "database_url"])],
+            timeout_seconds=_to_float(validation.get("timeout_seconds", 5.0), 5.0),
         ),
     )
 
@@ -177,4 +193,8 @@ def _with_env_overrides(config: CredHunterConfig) -> CredHunterConfig:
         config.llm.model = os.environ["CREDHUNTER_OPENAI_MODEL"]
     if os.getenv("CREDHUNTER_LLM_ENABLED"):
         config.llm.enabled = _to_bool(os.environ["CREDHUNTER_LLM_ENABLED"])
+    if os.getenv("CREDHUNTER_VALIDATION_ENABLED"):
+        config.validation.enabled = _to_bool(os.environ["CREDHUNTER_VALIDATION_ENABLED"])
+    if os.getenv("CREDHUNTER_VALIDATION_NETWORK_ENABLED"):
+        config.validation.network_enabled = _to_bool(os.environ["CREDHUNTER_VALIDATION_NETWORK_ENABLED"])
     return config

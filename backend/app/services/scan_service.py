@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.api.schemas import ScanCreateRequest
-from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig
+from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig, ValidationConfig
 from app.ci.decision import evaluate_findings
 from app.repositories.repository import Repository
 
@@ -113,6 +113,12 @@ def _config_from_request(request: ScanCreateRequest) -> CredHunterConfig:
             provider=config.llm.provider,
             model=config.llm.model,
             min_confidence=config.llm.min_confidence,
+        ),
+        validation=ValidationConfig(
+            enabled=config.validation.enabled,
+            network_enabled=config.validation.network_enabled,
+            providers=list(config.validation.providers),
+            timeout_seconds=config.validation.timeout_seconds,
         ),
     )
 

@@ -3,14 +3,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from app.api.schemas import ClassifyFindingRequest, FeedbackRequest, SuppressionRequest
-from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig
+from app.api.schemas import ClassifyFindingRequest, FeedbackRequest, SuppressionRequest, ValidateFindingRequest
+from app.ci.config import BackendConfig, CredHunterConfig, FilterConfig, LLMConfig, ScanConfig, ValidationConfig
 from app.ci.decision import evaluate_findings
 from app.repositories.repository import Repository
 
 from .finding_conversion import input_to_normalized_finding
 from .llm_filter_service import LLMFilterService
 from .schema_utils import model_to_dict
+from .validation_service import ValidationService
 
 
 class FindingService:
@@ -23,6 +24,11 @@ class FindingService:
         llm_assessments = LLMFilterService(config).classify_findings([finding], config)
         decision = evaluate_findings([finding], config, llm_assessments)
         return decision.findings[0].to_dict()
+
+    def validate_finding(self, request: ValidateFindingRequest) -> dict:
+        finding = input_to_normalized_finding(request.finding)
+        config = _config_from_request(request)
+        return ValidationService(config).validate_finding(finding, request.raw_secret).to_dict()
 
     def suppress_finding(self, finding_id: str, request: SuppressionRequest) -> dict | None:
         existing = self.repository.get_finding(finding_id)
@@ -104,6 +110,12 @@ def _config_from_request(request: ClassifyFindingRequest) -> CredHunterConfig:
             provider=config.llm.provider,
             model=config.llm.model,
             min_confidence=config.llm.min_confidence,
+        ),
+        validation=ValidationConfig(
+            enabled=config.validation.enabled,
+            network_enabled=config.validation.network_enabled,
+            providers=list(config.validation.providers),
+            timeout_seconds=config.validation.timeout_seconds,
         ),
     )
 

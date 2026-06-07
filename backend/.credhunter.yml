@@ -17,3 +17,12 @@ llm:
   provider: openai
   model: o4-mini
   min_confidence: 0.8
+
+validation:
+  enabled: false
+  network_enabled: false
+  providers:
+    - github
+    - jwt
+    - database_url
+  timeout_seconds: 5
