@@ -1,0 +1,660 @@
+# CredHunter-X Setup Guide
+
+This guide explains how to set up CredHunter-X from the beginning after cloning the project.
+
+CredHunter-X is a Git leak detection and false-positive filtering system. The current implementation focuses on the backend, GitHub Actions integration, Gitleaks report processing, rule-based filtering, optional LLM filtering, optional validation, risk scoring, CredData testing/evaluation, and reporting.
+
+## 1. Prerequisites
+
+Install these before starting:
+
+- Git
+- Python 3.10 or newer
+- pip
+- Gitleaks, optional but recommended
+- MongoDB, optional for persistent backend storage
+
+Check Python:
+
+```powershell
+python --version
+```
+
+Check Git:
+
+```powershell
+git --version
+```
+
+Check Gitleaks:
+
+```powershell
+gitleaks version
+```
+
+If Gitleaks is not installed, the backend tests can still run, but real GitHub Actions scanning depends on Gitleaks.
+
+### Install Gitleaks
+
+Gitleaks is the primary secret scanner used by CredHunter-X. CredHunter-X reads the Gitleaks JSON output, normalizes the findings, filters likely false positives, scores risk, and generates reports.
+
+#### Recommended Windows Installation
+
+Use `winget` from PowerShell:
+
+```powershell
+winget install --id Gitleaks.Gitleaks -e
+```
+
+Close and reopen PowerShell, then verify:
+
+```powershell
+gitleaks version
+```
+
+If the command is not recognized after installation, restart the terminal or check that the Gitleaks install location was added to your `PATH`.
+
+#### Manual Windows Installation
+
+Use this method if `winget` is not available.
+
+1. Open the official Gitleaks releases page:
+
+   ```text
+   https://github.com/gitleaks/gitleaks/releases
+   ```
+
+2. Download the Windows 64-bit ZIP file for the latest release. The filename usually looks similar to:
+
+   ```text
+   gitleaks_<version>_windows_x64.zip
+   ```
+
+3. Extract the ZIP file.
+
+4. Move `gitleaks.exe` to a permanent folder, for example:
+
+   ```text
+   C:\Tools\gitleaks\
+   ```
+
+5. Add that folder to your Windows `PATH`:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable(
+     "Path",
+     $env:Path + ";C:\Tools\gitleaks",
+     [EnvironmentVariableTarget]::User
+   )
+   ```
+
+6. Close and reopen PowerShell, then verify:
+
+   ```powershell
+   gitleaks version
+   ```
+
+#### Alternative Windows Package Managers
+
+If you already use Chocolatey:
+
+```powershell
+choco install gitleaks -y
+```
+
+If you already use Scoop:
+
+```powershell
+scoop install gitleaks
+```
+
+#### macOS
+
+Use Homebrew:
+
+```bash
+brew install gitleaks
+gitleaks version
+```
+
+#### Linux
+
+The simplest Linux approach is to download the latest Linux archive from the official releases page, extract it, and place the binary somewhere in your `PATH`, such as `/usr/local/bin`.
+
+Example:
+
+```bash
+tar -xzf gitleaks_<version>_linux_x64.tar.gz
+sudo mv gitleaks /usr/local/bin/gitleaks
+gitleaks version
+```
+
+#### Docker Option
+
+If Docker is installed, you can run Gitleaks without installing the binary directly:
+
+```powershell
+docker pull ghcr.io/gitleaks/gitleaks:latest
+docker run --rm -v ${PWD}:/repo ghcr.io/gitleaks/gitleaks:latest dir /repo
+```
+
+#### Test Gitleaks In This Project
+
+From the project root:
+
+```powershell
+gitleaks dir . --no-banner --report-format json --report-path Backend\reports\gitleaks-local.json
+```
+
+If secrets are found, Gitleaks may return a non-zero exit code. That is expected behavior. Review the generated report carefully and do not commit reports that contain real secret values.
+
+## 2. Clone The Project
+
+```powershell
+git clone <repository-url>
+cd CredHunter-X
+```
+
+Project structure:
+
+```text
+CredHunter-X/
+  Backend/
+    app/
+    dataset/
+    doc/
+    tests/
+    .credhunter.yml
+    .env.example
+    requirements.txt
+  Frontend/
+  .github/
+  SETUP.md
+```
+
+The frontend is not required for the current implementation.
+
+## 3. Create A Python Virtual Environment
+
+From the project root:
+
+```powershell
+cd Backend
+python -m venv .venv
+```
+
+Activate it on Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+On Linux/macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+## 4. Install Backend Dependencies
+
+From `Backend/`:
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Required packages include:
+
+```text
+fastapi
+httpx
+openai
+pydantic
+pymongo
+uvicorn
+```
+
+## 5. Configure Environment Variables
+
+Copy the example env file:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On Linux/macOS:
+
+```bash
+cp .env.example .env
+```
+
+Open `Backend/.env` and configure values if needed:
+
+```text
+OPENAI_API_KEY=
+CREDHUNTER_OPENAI_MODEL=o4-mini
+CREDHUNTER_LLM_ENABLED=false
+CREDHUNTER_VALIDATION_ENABLED=false
+CREDHUNTER_VALIDATION_NETWORK_ENABLED=false
+```
+
+Important:
+
+- Do not commit `Backend/.env`.
+- Do not paste real API keys into source files.
+- Keep `CREDHUNTER_LLM_ENABLED=false` unless you intentionally want to use the OpenAI API.
+- Keep `CREDHUNTER_VALIDATION_NETWORK_ENABLED=false` unless you intentionally want provider validation network calls.
+
+## 6. Review CredHunter Configuration
+
+Main runtime config:
+
+```text
+Backend/.credhunter.yml
+```
+
+Current default:
+
+```yaml
+scan:
+  mode: changed-files
+  fail_on: high
+  include_history: false
+
+filters:
+  ignore_paths:
+    - docs/**
+    - tests/fixtures/**
+  allow_placeholders: true
+
+backend:
+  url:
+
+llm:
+  enabled: false
+  provider: openai
+  model: o4-mini
+  min_confidence: 0.8
+
+validation:
+  enabled: false
+  network_enabled: false
+  providers:
+    - github
+    - jwt
+    - database_url
+  timeout_seconds: 5
+```
+
+For local development, the defaults are safe.
+
+## 7. Verify The Dataset
+
+CredData should be located at:
+
+```text
+Backend/dataset
+```
+
+Important processed files:
+
+```text
+Backend/dataset/processed/creddata_python_eval.jsonl
+Backend/dataset/processed/creddata_python_eval.summary.json
+```
+
+Check the summary:
+
+```powershell
+Get-Content .\dataset\processed\creddata_python_eval.summary.json
+```
+
+Expected values:
+
+```text
+records: 4387
+true_secret: 654
+false_positive: 3733
+```
+
+## 8. Run The Test Suite
+
+From `Backend/`:
+
+```powershell
+python -m unittest discover -s tests
+```
+
+Expected result:
+
+```text
+OK
+```
+
+The tests cover:
+
+- Scanner normalization
+- Gitleaks report parsing
+- CI decision logic
+- FastAPI endpoints
+- Rule-based false-positive filtering
+- LLM filtering safety
+- Optional validation
+- Risk scoring
+- CredData testing
+- Evaluation metrics
+- Reporting and feedback
+
+## 9. Run The Backend API
+
+From `Backend/`:
+
+```powershell
+uvicorn app.main:app --reload
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Health check:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Expected:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+## 10. Run Scanner Utilities
+
+Normalize a Gitleaks report:
+
+```powershell
+python -m app.scanner.cli normalize-gitleaks --input tests/fixtures/gitleaks-report.json
+```
+
+Run the fallback local scanner:
+
+```powershell
+python -m app.scanner.cli scan-path --path tests
+```
+
+The fallback scanner is for development only. In the pipeline, Gitleaks is the primary scanner.
+
+## 11. Run CI Decision Locally
+
+From `Backend/`:
+
+```powershell
+python -m app.ci.cli `
+  --gitleaks-report tests/fixtures/gitleaks-report.json `
+  --config .credhunter.yml `
+  --fail-on critical `
+  --json-output tests/fixtures/generated/local-report.json `
+  --sarif-output tests/fixtures/generated/local-report.sarif `
+  --summary-output tests/fixtures/generated/local-summary.md `
+  --pr-comment-output tests/fixtures/generated/local-pr-comment.md
+```
+
+Generated files:
+
+```text
+local-report.json
+local-report.sarif
+local-summary.md
+local-pr-comment.md
+```
+
+## 12. Run CredData Phase 9 Check
+
+Balanced sample:
+
+```powershell
+python -m app.evaluation.phase9_runner --balanced --limit 10
+```
+
+Write output:
+
+```powershell
+python -m app.evaluation.phase9_runner --balanced --limit 20 --output tests/fixtures/generated/phase9-check.json
+```
+
+This proves the system can safely load and process CredData records.
+
+## 13. Run CredData Phase 10 Evaluation
+
+Balanced evaluation:
+
+```powershell
+python -m app.evaluation.phase10_runner --balanced --limit 20
+```
+
+Full CredData Python evaluation:
+
+```powershell
+python -m app.evaluation.phase10_runner --output tests/fixtures/generated/phase10-full-evaluation.json
+```
+
+Optional Gitleaks baseline report:
+
+```powershell
+python -m app.evaluation.phase10_runner --gitleaks-report gitleaks-report.json
+```
+
+Metrics include:
+
+- Precision
+- Recall
+- F1 score
+- Accuracy
+- False positive rate
+- False negative rate
+- False-positive reduction
+- Manual review reduction
+
+## 14. MongoDB Setup, Optional
+
+By default, the API uses in-memory storage.
+
+To use MongoDB, set:
+
+```powershell
+$env:CREDHUNTER_MONGODB_URI="mongodb://localhost:27017"
+$env:CREDHUNTER_MONGODB_DATABASE="credhunter_x"
+```
+
+Then start the API:
+
+```powershell
+uvicorn app.main:app --reload
+```
+
+MongoDB collections used:
+
+```text
+projects
+repositories
+scans
+findings
+audit_logs
+```
+
+## 15. LLM Filtering, Optional
+
+LLM filtering is disabled by default.
+
+To enable it, edit `Backend/.env`:
+
+```text
+OPENAI_API_KEY=<your-key>
+CREDHUNTER_OPENAI_MODEL=o4-mini
+CREDHUNTER_LLM_ENABLED=true
+```
+
+Then update `.credhunter.yml` if needed:
+
+```yaml
+llm:
+  enabled: true
+  provider: openai
+  model: o4-mini
+  min_confidence: 0.8
+```
+
+Safety behavior:
+
+- Raw secrets are not sent to the LLM.
+- Redacted context is used.
+- Private keys are not downgraded by the LLM.
+- If no API key is configured, the system falls back to deterministic rules.
+
+## 16. Secret Validation, Optional
+
+Validation is disabled by default.
+
+To enable local-only validation:
+
+```text
+CREDHUNTER_VALIDATION_ENABLED=true
+CREDHUNTER_VALIDATION_NETWORK_ENABLED=false
+```
+
+To enable provider network validation:
+
+```text
+CREDHUNTER_VALIDATION_ENABLED=true
+CREDHUNTER_VALIDATION_NETWORK_ENABLED=true
+```
+
+Use network validation carefully. It may send tokens to provider APIs for read-only validation.
+
+Supported validators:
+
+- GitHub token validation, network opt-in
+- JWT expiration check, local only
+- Database URL local/external classification, local only
+
+## 17. GitHub Actions Setup
+
+GitHub Action files:
+
+```text
+.github/actions/credhunter-x/action.yml
+.github/workflows/credhunter-x.yml
+```
+
+The workflow:
+
+```text
+checkout repository
+setup Python
+run Gitleaks
+run CredHunter-X
+upload JSON/SARIF/PR-comment reports
+```
+
+Gitleaks uses `continue-on-error: true` so CredHunter-X can make the final decision after filtering and scoring.
+
+## 18. Common Commands
+
+Run all tests:
+
+```powershell
+python -m unittest discover -s tests
+```
+
+Start API:
+
+```powershell
+uvicorn app.main:app --reload
+```
+
+Run Phase 9:
+
+```powershell
+python -m app.evaluation.phase9_runner --balanced --limit 10
+```
+
+Run Phase 10:
+
+```powershell
+python -m app.evaluation.phase10_runner --balanced --limit 20
+```
+
+Run CI locally:
+
+```powershell
+python -m app.ci.cli --gitleaks-report tests/fixtures/gitleaks-report.json --config .credhunter.yml
+```
+
+## 19. Troubleshooting
+
+If imports fail, make sure you are in `Backend/`:
+
+```powershell
+cd Backend
+```
+
+If dependencies are missing:
+
+```powershell
+pip install -r requirements.txt
+```
+
+If PowerShell blocks virtual environment activation:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+If the API starts but MongoDB is not used:
+
+```text
+CREDHUNTER_MONGODB_URI
+```
+
+must be set before starting `uvicorn`.
+
+If LLM filtering is skipped:
+
+```text
+CREDHUNTER_LLM_ENABLED=true
+OPENAI_API_KEY=<your-key>
+```
+
+must be configured.
+
+## 20. Security Rules
+
+Do not commit:
+
+- `Backend/.env`
+- API keys
+- Raw secrets
+- Real Gitleaks reports containing unredacted secrets
+
+The repository already ignores `.env` files and generated reports.
+
+Before committing, check:
+
+```powershell
+git status --short
+```
+
+Search for accidental secrets:
+
+```powershell
+rg -n "OPENAI_API_KEY=|sk-proj|ghp_|AKIA" .
+```
+
+Only safe placeholders should appear.
