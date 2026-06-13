@@ -75,6 +75,11 @@ class ApiKeyAuthTests(unittest.TestCase):
             self.assertEqual(client.get("/health").status_code, 200)
             self.assertEqual(client.get("/health/ready").status_code, 200)
 
+    def test_cors_allows_dashboard_origin(self):
+        client = TestClient(create_app())
+        response = client.get("/health", headers={"Origin": "http://localhost:5173"})
+        self.assertEqual(response.headers.get("access-control-allow-origin"), "http://localhost:5173")
+
 
 class AsyncScanQueueTests(unittest.TestCase):
     def setUp(self):
