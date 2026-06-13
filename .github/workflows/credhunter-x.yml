@@ -31,13 +31,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: false
-          GITLEAKS_REPORT_FORMAT: json
-          GITLEAKS_REPORT_PATH: gitleaks-report.json
 
       - name: Run CredHunter-X
         uses: ./.github/actions/credhunter-x
         with:
-          gitleaks_report: ../gitleaks-report.json
+          gitleaks_report: ../results.sarif
           config: .credhunter.yml
           fail_on: high
           json_output: ../credhunter-report.json

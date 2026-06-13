@@ -10,15 +10,15 @@ The LLM layer is designed to reduce false positives without sending raw secrets 
 
 Main implementation:
 
-- `Backend/app/services/llm_filter_service.py`
+- `backend/app/services/llm_filter_service.py`
 
 Integrated into:
 
-- `Backend/app/services/finding_service.py`
-- `Backend/app/services/scan_service.py`
-- `Backend/app/ci/decision.py`
-- `Backend/app/api/schemas.py`
-- `Backend/app/ci/config.py`
+- `backend/app/services/finding_service.py`
+- `backend/app/services/scan_service.py`
+- `backend/app/ci/decision.py`
+- `backend/app/api/schemas.py`
+- `backend/app/ci/config.py`
 
 ## Configuration
 
@@ -35,10 +35,10 @@ llm:
 To enable it locally:
 
 ```powershell
-Copy-Item Backend/.env.example Backend/.env
+Copy-Item backend/.env.example backend/.env
 ```
 
-Then edit `Backend/.env` locally:
+Then edit `backend/.env` locally:
 
 ```text
 OPENAI_API_KEY=your-rotated-key
@@ -46,7 +46,7 @@ CREDHUNTER_OPENAI_MODEL=o4-mini
 CREDHUNTER_LLM_ENABLED=true
 ```
 
-`Backend/.env` is ignored by git and must not be committed.
+`backend/.env` is ignored by git and must not be committed.
 
 ## Safety Rules
 

@@ -2,22 +2,22 @@
 
 ## Purpose
 
-Phase 9 uses the local **CredData** dataset under `Backend/dataset` as the controlled benchmark dataset for testing.
+Phase 9 uses the local **CredData** dataset under `backend/Dataset` as the controlled benchmark dataset for testing.
 
 This phase does not calculate final research metrics. Final precision, recall, F1, and false-positive reduction belong to Phase 10.
 
 ## Dataset Location
 
 ```text
-Backend/dataset
+backend/Dataset
 ```
 
 Important files:
 
 ```text
-Backend/dataset/processed/creddata_python_eval.jsonl
-Backend/dataset/processed/creddata_python_eval.summary.json
-Backend/dataset/processed/creddata_python_eval.enriched.jsonl
+backend/Dataset/processed/creddata_python_eval.jsonl
+backend/Dataset/processed/creddata_python_eval.summary.json
+backend/Dataset/processed/creddata_python_eval.enriched.jsonl
 ```
 
 Current processed summary:
@@ -33,19 +33,19 @@ false_positive: 3733
 Dataset loader:
 
 ```text
-Backend/app/evaluation/creddata_loader.py
+backend/app/evaluation/creddata_loader.py
 ```
 
 Phase 9 runner:
 
 ```text
-Backend/app/evaluation/phase9_runner.py
+backend/app/evaluation/phase9_runner.py
 ```
 
 Tests:
 
 ```text
-Backend/tests/test_creddata_phase9.py
+backend/tests/test_creddata_phase9.py
 ```
 
 ## What Phase 9 Tests

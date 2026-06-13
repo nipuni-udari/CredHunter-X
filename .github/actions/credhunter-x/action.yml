@@ -40,4 +40,4 @@ runs:
           --json-output "${{ inputs.json_output }}" \
           --sarif-output "${{ inputs.sarif_output }}" \
           --pr-comment-output "${{ inputs.pr_comment_output }}"
-      working-directory: Backend
+      working-directory: backend

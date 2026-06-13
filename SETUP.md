@@ -143,7 +143,7 @@ docker run --rm -v ${PWD}:/repo ghcr.io/gitleaks/gitleaks:latest dir /repo
 From the project root:
 
 ```powershell
-gitleaks dir . --no-banner --report-format json --report-path Backend\reports\gitleaks-local.json
+gitleaks dir . --no-banner --report-format json --report-path backend\reports\gitleaks-local.json
 ```
 
 If secrets are found, Gitleaks may return a non-zero exit code. That is expected behavior. Review the generated report carefully and do not commit reports that contain real secret values.
@@ -159,9 +159,9 @@ Project structure:
 
 ```text
 CredHunter-X/
-  Backend/
+  backend/
     app/
-    dataset/
+    Dataset/
     doc/
     tests/
     .credhunter.yml
@@ -179,7 +179,7 @@ The frontend is not required for the current implementation.
 From the project root:
 
 ```powershell
-cd Backend
+cd backend
 python -m venv .venv
 ```
 
@@ -197,7 +197,7 @@ source .venv/bin/activate
 
 ## 4. Install Backend Dependencies
 
-From `Backend/`:
+From `backend/`:
 
 ```powershell
 python -m pip install --upgrade pip
@@ -229,7 +229,7 @@ On Linux/macOS:
 cp .env.example .env
 ```
 
-Open `Backend/.env` and configure values if needed:
+Open `backend/.env` and configure values if needed:
 
 ```text
 OPENAI_API_KEY=
@@ -237,11 +237,17 @@ CREDHUNTER_OPENAI_MODEL=o4-mini
 CREDHUNTER_LLM_ENABLED=false
 CREDHUNTER_VALIDATION_ENABLED=false
 CREDHUNTER_VALIDATION_NETWORK_ENABLED=false
+CREDHUNTER_API_KEYS=
+CREDHUNTER_REDIS_URL=redis://localhost:6379/0
+CREDHUNTER_QUEUE_NAME=credhunter
 ```
+
+- `CREDHUNTER_API_KEYS` is a comma-separated list of accepted API keys. When empty, API authentication is disabled (safe for local development). See section 21.
+- `CREDHUNTER_REDIS_URL` enables background scan processing via the worker. When unset or unreachable, scans are processed inline. See section 22.
 
 Important:
 
-- Do not commit `Backend/.env`.
+- Do not commit `backend/.env`.
 - Do not paste real API keys into source files.
 - Keep `CREDHUNTER_LLM_ENABLED=false` unless you intentionally want to use the OpenAI API.
 - Keep `CREDHUNTER_VALIDATION_NETWORK_ENABLED=false` unless you intentionally want provider validation network calls.
@@ -251,7 +257,7 @@ Important:
 Main runtime config:
 
 ```text
-Backend/.credhunter.yml
+backend/.credhunter.yml
 ```
 
 Current default:
@@ -294,14 +300,14 @@ For local development, the defaults are safe.
 CredData should be located at:
 
 ```text
-Backend/dataset
+backend/Dataset
 ```
 
 Important processed files:
 
 ```text
-Backend/dataset/processed/creddata_python_eval.jsonl
-Backend/dataset/processed/creddata_python_eval.summary.json
+backend/Dataset/processed/creddata_python_eval.jsonl
+backend/Dataset/processed/creddata_python_eval.summary.json
 ```
 
 Check the summary:
@@ -320,7 +326,7 @@ false_positive: 3733
 
 ## 8. Run The Test Suite
 
-From `Backend/`:
+From `backend/`:
 
 ```powershell
 python -m unittest discover -s tests
@@ -348,7 +354,7 @@ The tests cover:
 
 ## 9. Run The Backend API
 
-From `Backend/`:
+From `backend/`:
 
 ```powershell
 uvicorn app.main:app --reload
@@ -392,7 +398,7 @@ The fallback scanner is for development only. In the pipeline, Gitleaks is the p
 
 ## 11. Run CI Decision Locally
 
-From `Backend/`:
+From `backend/`:
 
 ```powershell
 python -m app.ci.cli `
@@ -492,7 +498,7 @@ audit_logs
 
 LLM filtering is disabled by default.
 
-To enable it, edit `Backend/.env`:
+To enable it, edit `backend/.env`:
 
 ```text
 OPENAI_API_KEY=<your-key>
@@ -564,7 +570,105 @@ upload JSON/SARIF/PR-comment reports
 
 Gitleaks uses `continue-on-error: true` so CredHunter-X can make the final decision after filtering and scoring.
 
-## 18. Common Commands
+## 18. Deployment With Docker
+
+Deployment files:
+
+```text
+backend/Dockerfile
+docker-compose.yml
+.github/workflows/docker-image.yml
+backend/doc/phase-12/deployment-process.md
+```
+
+Run the local deployment stack from the project root:
+
+```powershell
+docker compose up --build
+```
+
+Check the backend:
+
+```powershell
+curl http://localhost:8000/health
+curl http://localhost:8000/health/ready
+```
+
+The Docker image workflow runs backend tests, builds the backend image, and publishes to GHCR on non-pull-request events.
+
+## 21. API Authentication
+
+API endpoints under `/api` support optional API-key authentication. Health endpoints
+(`/health`, `/health/ready`) are always open.
+
+- When `CREDHUNTER_API_KEYS` is empty, authentication is disabled. This keeps local
+  development and the test suite simple.
+- When set to one or more comma-separated keys, every `/api` request must include a
+  matching `X-API-Key` header, or it is rejected with `401`.
+
+Enable it:
+
+```powershell
+$env:CREDHUNTER_API_KEYS="key-one,key-two"
+uvicorn app.main:app --reload
+```
+
+Example authenticated request:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/projects/project-demo/findings `
+  -Headers @{ "X-API-Key" = "key-one" }
+```
+
+## 22. Asynchronous Scans And Background Worker
+
+Scans can be processed synchronously (default) or queued for a background worker.
+
+- `POST /api/scans` processes synchronously and returns the full decision.
+- `POST /api/scans/async` enqueues the scan and returns a `job_id`.
+- `GET /api/jobs/{job_id}` returns the job status and result.
+
+The queue backend is selected automatically:
+
+- If `CREDHUNTER_REDIS_URL` is set and reachable, jobs run on a Redis/RQ queue.
+- Otherwise jobs run inline in-process (so the API still works without Redis).
+
+Start a worker (requires Redis):
+
+```powershell
+python -m app.worker
+```
+
+With Docker Compose, the `worker`, `redis`, and `mongodb` services are already wired:
+
+```powershell
+docker compose up --build
+```
+
+## 23. Frontend Dashboard
+
+A React + TypeScript (Vite) dashboard lives in `Frontend/`. It lets you review and triage
+findings: load a project's findings, see a feedback summary, and mark findings as
+true/false positive or suppress them.
+
+```powershell
+cd Frontend
+npm install
+npm run dev
+```
+
+Open the printed URL (default `http://localhost:5173`). In the Settings panel, set the API
+base URL (default `http://localhost:8000`) and, if the backend has `CREDHUNTER_API_KEYS`
+configured, a matching API key.
+
+Build for production:
+
+```powershell
+npm run build
+npm run preview
+```
+
+## 19. Common Commands
 
 Run all tests:
 
@@ -596,12 +700,12 @@ Run CI locally:
 python -m app.ci.cli --gitleaks-report tests/fixtures/gitleaks-report.json --config .credhunter.yml
 ```
 
-## 19. Troubleshooting
+## 20. Troubleshooting
 
-If imports fail, make sure you are in `Backend/`:
+If imports fail, make sure you are in `backend/`:
 
 ```powershell
-cd Backend
+cd backend
 ```
 
 If dependencies are missing:
@@ -638,7 +742,7 @@ must be configured.
 
 Do not commit:
 
-- `Backend/.env`
+- `backend/.env`
 - API keys
 - Raw secrets
 - Real Gitleaks reports containing unredacted secrets

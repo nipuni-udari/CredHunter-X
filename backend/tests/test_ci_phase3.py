@@ -1,6 +1,8 @@
 import json
+import os
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from app.ci.backend_client import build_scan_payload
 from app.ci.cli import main as ci_main
@@ -65,7 +67,10 @@ class CIPhase3Tests(unittest.TestCase):
         config = load_config("tests/fixtures/credhunter.yml")
         findings = parse_gitleaks_report("tests/fixtures/gitleaks-report.json")
 
-        payload = build_scan_payload(findings, config)
+        # Isolate from CI environment variables (e.g. GITHUB_REPOSITORY) so the
+        # payload falls back to deterministic local defaults.
+        with mock.patch.dict(os.environ, {}, clear=True):
+            payload = build_scan_payload(findings, config)
 
         self.assertEqual(payload["project_id"], "local/repository")
         self.assertEqual(payload["repository_id"], "local/repository")

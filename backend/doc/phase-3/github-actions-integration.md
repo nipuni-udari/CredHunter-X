@@ -26,14 +26,14 @@ GitHub Actions files:
 
 Backend CI modules:
 
-- `Backend/app/ci/config.py`
-- `Backend/app/ci/decision.py`
-- `Backend/app/ci/reports.py`
-- `Backend/app/ci/cli.py`
+- `backend/app/ci/config.py`
+- `backend/app/ci/decision.py`
+- `backend/app/ci/reports.py`
+- `backend/app/ci/cli.py`
 
 Configuration file:
 
-- `Backend/.credhunter.yml`
+- `backend/.credhunter.yml`
 
 ## CI Command
 

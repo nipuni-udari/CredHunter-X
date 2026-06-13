@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.schemas import ScanCreateRequest
 from app.repositories.repository import Repository
 from app.reporting.markdown import build_pr_comment
+from app.services.job_queue import JobQueue
 from app.services.scan_service import ScanService
 
-from .dependencies import get_repository
+from .dependencies import get_job_queue, get_repository
 
 router = APIRouter(tags=["scans"])
 
@@ -19,6 +20,26 @@ def create_scan(
 ) -> dict:
     service = ScanService(repository)
     return service.create_scan(request)
+
+
+@router.post("/scans/async", status_code=202)
+def create_scan_async(
+    request: ScanCreateRequest,
+    queue: JobQueue = Depends(get_job_queue),
+) -> dict:
+    job_id = queue.enqueue(request.model_dump(mode="json"))
+    record = queue.get(job_id)
+    if record:
+        return record
+    return {"job_id": job_id, "status": "queued", "result": None, "error": None}
+
+
+@router.get("/jobs/{job_id}")
+def get_job_status(job_id: str, queue: JobQueue = Depends(get_job_queue)) -> dict:
+    record = queue.get(job_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return record
 
 
 @router.get("/scans/{scan_id}")

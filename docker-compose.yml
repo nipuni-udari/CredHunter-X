@@ -1,0 +1,74 @@
+services:
+  api:
+    build:
+      context: ./backend
+    image: credhunter-x-backend:local
+    environment: &backend_environment
+      CREDHUNTER_MONGODB_URI: mongodb://mongodb:27017
+      CREDHUNTER_MONGODB_DATABASE: credhunter_x
+      CREDHUNTER_REDIS_URL: redis://redis:6379/0
+      CREDHUNTER_LLM_ENABLED: ${CREDHUNTER_LLM_ENABLED:-false}
+      CREDHUNTER_VALIDATION_ENABLED: ${CREDHUNTER_VALIDATION_ENABLED:-false}
+      CREDHUNTER_VALIDATION_NETWORK_ENABLED: ${CREDHUNTER_VALIDATION_NETWORK_ENABLED:-false}
+      CREDHUNTER_OPENAI_MODEL: ${CREDHUNTER_OPENAI_MODEL:-o4-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5)); raise SystemExit(0 if data.get('status') == 'ready' else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    build:
+      context: ./backend
+    image: credhunter-x-backend:local
+    command: ["python", "-m", "app.worker"]
+    environment: *backend_environment
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "db.adminCommand('ping').ok"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  mongodb_data:
+  redis_data:

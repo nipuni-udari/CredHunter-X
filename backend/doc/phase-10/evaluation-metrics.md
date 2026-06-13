@@ -18,19 +18,19 @@ The evaluator compares CredHunter-X decisions against these labels and calculate
 Metrics:
 
 ```text
-Backend/app/evaluation/metrics.py
+backend/app/evaluation/metrics.py
 ```
 
 Evaluation runner:
 
 ```text
-Backend/app/evaluation/phase10_runner.py
+backend/app/evaluation/phase10_runner.py
 ```
 
 Tests:
 
 ```text
-Backend/tests/test_evaluation_phase10.py
+backend/tests/test_evaluation_phase10.py
 ```
 
 ## Decision Mapping

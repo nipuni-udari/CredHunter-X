@@ -10,14 +10,14 @@ Validation is intentionally disabled by default because it can involve sensitive
 
 Main implementation:
 
-- `Backend/app/services/validation_service.py`
+- `backend/app/services/validation_service.py`
 
 Integrated into:
 
-- `Backend/app/api/finding_routes.py`
-- `Backend/app/services/finding_service.py`
-- `Backend/app/api/schemas.py`
-- `Backend/app/ci/config.py`
+- `backend/app/api/finding_routes.py`
+- `backend/app/services/finding_service.py`
+- `backend/app/api/schemas.py`
+- `backend/app/ci/config.py`
 
 ## Endpoint
 

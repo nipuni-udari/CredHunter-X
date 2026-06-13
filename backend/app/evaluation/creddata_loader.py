@@ -7,9 +7,9 @@ from typing import Iterable
 
 from app.scanner.models import NormalizedFinding
 
-DEFAULT_CRED_DATA_JSONL = Path(__file__).resolve().parents[2] / "dataset" / "processed" / "creddata_python_eval.jsonl"
+DEFAULT_CRED_DATA_JSONL = Path(__file__).resolve().parents[2] / "Dataset" / "processed" / "creddata_python_eval.jsonl"
 DEFAULT_CRED_DATA_SUMMARY = (
-    Path(__file__).resolve().parents[2] / "dataset" / "processed" / "creddata_python_eval.summary.json"
+    Path(__file__).resolve().parents[2] / "Dataset" / "processed" / "creddata_python_eval.summary.json"
 )
 
 CATEGORY_TO_SECRET_TYPE = {
