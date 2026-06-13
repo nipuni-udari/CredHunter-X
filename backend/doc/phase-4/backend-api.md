@@ -8,29 +8,29 @@ Phase 4 adds the FastAPI backend that receives scan results, stores normalized f
 
 API app:
 
-- `Backend/app/main.py`
-- `Backend/app/api/app.py`
+- `backend/app/main.py`
+- `backend/app/api/app.py`
 
 Routes:
 
-- `Backend/app/api/scan_routes.py`
-- `Backend/app/api/finding_routes.py`
-- `Backend/app/api/project_routes.py`
+- `backend/app/api/scan_routes.py`
+- `backend/app/api/finding_routes.py`
+- `backend/app/api/project_routes.py`
 
 Services:
 
-- `Backend/app/services/scan_service.py`
-- `Backend/app/services/finding_service.py`
+- `backend/app/services/scan_service.py`
+- `backend/app/services/finding_service.py`
 
 Persistence:
 
-- `Backend/app/repositories/memory_repository.py`
-- `Backend/app/repositories/mongo_repository.py`
-- `Backend/app/repositories/repository.py`
+- `backend/app/repositories/memory_repository.py`
+- `backend/app/repositories/mongo_repository.py`
+- `backend/app/repositories/repository.py`
 
 Schemas:
 
-- `Backend/app/api/schemas.py`
+- `backend/app/api/schemas.py`
 
 ## API Endpoints
 

@@ -11,18 +11,18 @@ It adds PR-comment markdown, richer CI reports, remediation guidance, and feedba
 Reporting helpers:
 
 ```text
-Backend/app/reporting/markdown.py
-Backend/app/reporting/remediation.py
+backend/app/reporting/markdown.py
+backend/app/reporting/remediation.py
 ```
 
 Integrated into:
 
 ```text
-Backend/app/ci/reports.py
-Backend/app/ci/cli.py
-Backend/app/api/scan_routes.py
-Backend/app/api/project_routes.py
-Backend/app/services/scan_service.py
+backend/app/ci/reports.py
+backend/app/ci/cli.py
+backend/app/api/scan_routes.py
+backend/app/api/project_routes.py
+backend/app/services/scan_service.py
 ```
 
 ## Report Formats

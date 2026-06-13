@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 
 from app.api.finding_routes import router as finding_router
 from app.api.project_routes import router as project_router
 from app.api.scan_routes import router as scan_router
+from app.core.env import load_local_env
 
 
 def create_app() -> FastAPI:
+    load_local_env()
     app = FastAPI(
         title="CredHunter-X Backend API",
         version="0.4.0",
@@ -17,6 +21,11 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health_check() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/health/ready")
+    def readiness_check() -> dict[str, str]:
+        storage = "mongodb" if os.getenv("CREDHUNTER_MONGODB_URI") else "memory"
+        return {"status": "ready", "storage": storage}
 
     app.include_router(scan_router, prefix="/api")
     app.include_router(finding_router, prefix="/api")

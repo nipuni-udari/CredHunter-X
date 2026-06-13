@@ -10,12 +10,12 @@ The goal is to remove obvious false positives without using an LLM and without d
 
 Main implementation:
 
-- `Backend/app/services/false_positive_filter.py`
+- `backend/app/services/false_positive_filter.py`
 
 Integrated into:
 
-- `Backend/app/ci/decision.py`
-- `Backend/app/scanner/normalizer.py`
+- `backend/app/ci/decision.py`
+- `backend/app/scanner/normalizer.py`
 
 ## Filter Signals
 

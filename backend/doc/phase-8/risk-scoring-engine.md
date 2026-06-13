@@ -10,14 +10,14 @@ The scoring engine combines detector confidence, secret type, file context, rule
 
 Main implementation:
 
-- `Backend/app/services/risk_scoring_service.py`
+- `backend/app/services/risk_scoring_service.py`
 
 Integrated into:
 
-- `Backend/app/ci/decision.py`
-- `Backend/app/ci/reports.py`
-- `Backend/app/ci/cli.py`
-- `Backend/app/services/scan_service.py`
+- `backend/app/ci/decision.py`
+- `backend/app/ci/reports.py`
+- `backend/app/ci/cli.py`
+- `backend/app/services/scan_service.py`
 
 ## Scoring Formula
 

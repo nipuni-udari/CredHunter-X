@@ -9,7 +9,7 @@ Phase 2 introduces the core scanner layer for CredHunter-X. This layer is respon
 The scanner package is located in:
 
 ```text
-Backend/app/scanner/
+backend/app/scanner/
 ```
 
 Implemented modules:
