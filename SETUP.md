@@ -237,7 +237,13 @@ CREDHUNTER_OPENAI_MODEL=o4-mini
 CREDHUNTER_LLM_ENABLED=false
 CREDHUNTER_VALIDATION_ENABLED=false
 CREDHUNTER_VALIDATION_NETWORK_ENABLED=false
+CREDHUNTER_API_KEYS=
+CREDHUNTER_REDIS_URL=redis://localhost:6379/0
+CREDHUNTER_QUEUE_NAME=credhunter
 ```
+
+- `CREDHUNTER_API_KEYS` is a comma-separated list of accepted API keys. When empty, API authentication is disabled (safe for local development). See section 21.
+- `CREDHUNTER_REDIS_URL` enables background scan processing via the worker. When unset or unreachable, scans are processed inline. See section 22.
 
 Important:
 
@@ -589,6 +595,78 @@ curl http://localhost:8000/health/ready
 ```
 
 The Docker image workflow runs backend tests, builds the backend image, and publishes to GHCR on non-pull-request events.
+
+## 21. API Authentication
+
+API endpoints under `/api` support optional API-key authentication. Health endpoints
+(`/health`, `/health/ready`) are always open.
+
+- When `CREDHUNTER_API_KEYS` is empty, authentication is disabled. This keeps local
+  development and the test suite simple.
+- When set to one or more comma-separated keys, every `/api` request must include a
+  matching `X-API-Key` header, or it is rejected with `401`.
+
+Enable it:
+
+```powershell
+$env:CREDHUNTER_API_KEYS="key-one,key-two"
+uvicorn app.main:app --reload
+```
+
+Example authenticated request:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/projects/project-demo/findings `
+  -Headers @{ "X-API-Key" = "key-one" }
+```
+
+## 22. Asynchronous Scans And Background Worker
+
+Scans can be processed synchronously (default) or queued for a background worker.
+
+- `POST /api/scans` processes synchronously and returns the full decision.
+- `POST /api/scans/async` enqueues the scan and returns a `job_id`.
+- `GET /api/jobs/{job_id}` returns the job status and result.
+
+The queue backend is selected automatically:
+
+- If `CREDHUNTER_REDIS_URL` is set and reachable, jobs run on a Redis/RQ queue.
+- Otherwise jobs run inline in-process (so the API still works without Redis).
+
+Start a worker (requires Redis):
+
+```powershell
+python -m app.worker
+```
+
+With Docker Compose, the `worker`, `redis`, and `mongodb` services are already wired:
+
+```powershell
+docker compose up --build
+```
+
+## 23. Frontend Dashboard
+
+A React + TypeScript (Vite) dashboard lives in `Frontend/`. It lets you review and triage
+findings: load a project's findings, see a feedback summary, and mark findings as
+true/false positive or suppress them.
+
+```powershell
+cd Frontend
+npm install
+npm run dev
+```
+
+Open the printed URL (default `http://localhost:5173`). In the Settings panel, set the API
+base URL (default `http://localhost:8000`) and, if the backend has `CREDHUNTER_API_KEYS`
+configured, a matching API key.
+
+Build for production:
+
+```powershell
+npm run build
+npm run preview
+```
 
 ## 19. Common Commands
 
