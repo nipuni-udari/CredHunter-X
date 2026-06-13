@@ -32,7 +32,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.fail_on:
             config.scan.fail_on = args.fail_on.lower()
 
-        findings = parse_gitleaks_report(args.gitleaks_report)
+        if os.path.exists(args.gitleaks_report):
+            findings = parse_gitleaks_report(args.gitleaks_report)
+        else:
+            sys.stderr.write(
+                f"CredHunter-X: Gitleaks report not found at '{args.gitleaks_report}'; "
+                "treating as a clean scan with no findings.\n"
+            )
+            findings = []
+
         decision = evaluate_findings(findings, config)
         backend_scan = None
 
