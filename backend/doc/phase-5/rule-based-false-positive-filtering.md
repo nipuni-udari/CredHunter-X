@@ -19,14 +19,50 @@ Integrated into:
 
 ## Filter Signals
 
-The rule-based filter currently checks:
+The rule-based filter checks:
 
 - Configured ignored paths.
-- Documentation, example, test, fixture, mock, and sample paths.
-- Placeholder or dummy-value indicators.
+- Literal placeholder / dummy values (in the secret value itself).
 - Local-only database URLs.
-- Generic high-entropy findings in docs/tests/examples.
-- Repeated low-value dummy strings.
+- Repeated, sequential, or single-character dummy strings.
+- UUIDs and digest-shaped hex strings (md5/sha1/sha256/...).
+- Findings with no extractable secret value (not a credential).
+- Generic findings whose value is too short or whose entropy is below the
+  real-secret range (`filters.min_secret_length`, `filters.min_entropy`).
+- Documentation, example, test, fixture, mock, and sample paths.
+
+### Generic-only vs all-type rules
+
+Entropy, length, UUID, and hash heuristics apply **only** to
+`generic_secret` / `generic_high_entropy_secret` findings. Provider tokens
+(`github_token`, `aws_access_key`, `jwt`, `oauth_token`, `database_url`) have
+known formats and can legitimately be short or low-entropy, so they are never
+downgraded by those heuristics. Path-based context never auto-ignores on its
+own, because real secrets frequently live in test files.
+
+## Configuration
+
+```yaml
+filters:
+  allow_placeholders: true
+  min_entropy: 1.8          # generic findings below this are likely false positives
+  min_secret_length: 4      # generic findings shorter than this are likely false positives
+  require_secret_value: true # findings with no extractable value are likely false positives
+```
+
+## Measured Impact (CredData, 4,387 candidates)
+
+Rule-based layer only (no LLM), via `python -m app.evaluation.phase10_runner`:
+
+| Metric        | Raw scanner | Rule-based filter |
+| ------------- | ----------- | ----------------- |
+| Precision     | 0.149       | 0.604             |
+| Recall        | 1.000       | 0.962             |
+| F1            | 0.259       | 0.742             |
+| False positives removed | —  | 88.9%             |
+
+The filter removes ~89% of false positives while preserving ~96% recall on
+real leaked credentials.
 
 ## Conservative Safety Rule
 

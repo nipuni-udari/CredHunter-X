@@ -20,6 +20,12 @@ class ScanConfig:
 class FilterConfig:
     ignore_paths: list[str] = field(default_factory=list)
     allow_placeholders: bool = True
+    # Generic-secret heuristics. Real provider tokens (github/aws/jwt/...) and
+    # private keys are never downgraded by these; they only apply to
+    # generic_secret / generic_high_entropy_secret findings.
+    min_entropy: float = 1.8
+    min_secret_length: int = 4
+    require_secret_value: bool = True
 
 
 @dataclass(slots=True)
@@ -86,6 +92,9 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
         filters=FilterConfig(
             ignore_paths=[str(item) for item in filters.get("ignore_paths", [])],
             allow_placeholders=_to_bool(filters.get("allow_placeholders", True)),
+            min_entropy=_to_float(filters.get("min_entropy", 1.8), 1.8),
+            min_secret_length=int(_to_float(filters.get("min_secret_length", 4), 4)),
+            require_secret_value=_to_bool(filters.get("require_secret_value", True)),
         ),
         backend=BackendConfig(url=_optional_string(backend.get("url"))),
         llm=LLMConfig(

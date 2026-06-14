@@ -25,6 +25,19 @@ CATEGORY_TO_SECRET_TYPE = {
 }
 
 
+def _secret_type_for_category(category: str) -> str:
+    lowered = category.lower()
+    # Private-key material must map to the protected type a real scanner would
+    # assign; otherwise the deterministic filter could downgrade it.
+    if "private key" in lowered or "pem" in lowered:
+        return "private_key"
+    if "aws" in lowered:
+        return "aws_access_key"
+    if "json web token" in lowered or category == "JWT":
+        return "jwt"
+    return CATEGORY_TO_SECRET_TYPE.get(category, "generic_secret")
+
+
 @dataclass(slots=True)
 class CredDataRecord:
     candidate_id: str
@@ -65,10 +78,11 @@ class CredDataRecord:
         )
 
     def to_finding(self) -> NormalizedFinding:
+        features = self.raw.get("secret_features") or {}
         return NormalizedFinding(
             finding_id=self.candidate_id,
             detector="creddata.labelled_candidate",
-            secret_type=CATEGORY_TO_SECRET_TYPE.get(self.category, "generic_secret"),
+            secret_type=_secret_type_for_category(self.category),
             file_path=self.file_path,
             line_number=self.line_start,
             redacted_secret=self.redacted_secret,
@@ -90,9 +104,18 @@ class CredDataRecord:
                 "signals": self.signals,
                 "code_context_redacted": self.code_context_redacted,
                 "secret_indicators": {
-                    "placeholder": bool(self.signals.get("contains_placeholder_words")),
+                    # Length of the located candidate value (None when CredData
+                    # could not pin a value span on the flagged line).
+                    "length": features.get("length"),
+                    "has_value": bool(features.get("has_value_offsets")),
+                    "in_comment": bool(self.signals.get("is_comment")),
+                    "in_example_file": bool(self.signals.get("is_example_file")),
+                    # Value-level structural signals are not derivable from the
+                    # obfuscated CredData candidates; a real normalizer fills these.
                     "local_only_database_url": False,
                     "repeated_or_low_value": False,
+                    "uuid_like": False,
+                    "hash_like": False,
                     "has_private_key_marker": False,
                 },
             },
