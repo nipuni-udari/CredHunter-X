@@ -75,6 +75,7 @@ runs:
       run: pip install --quiet -r "${{ github.action_path }}/backend/requirements.txt"
 
     - name: Run CredHunter-X
+      id: credhunter
       shell: bash
       working-directory: ${{ github.action_path }}/backend
       env:
@@ -89,3 +90,18 @@ runs:
           --sarif-output "${{ github.workspace }}/credhunter-report.sarif" \
           --pr-comment-output "${{ github.workspace }}/credhunter-pr-comment.md" \
           --summary-output "${GITHUB_STEP_SUMMARY}"
+
+    # Runs even when the scan failed (always), so blocking findings still get a
+    # comment. Needs `permissions: pull-requests: write` in the caller workflow;
+    # if that is missing, it logs a hint instead of failing the job.
+    - name: Post PR comment
+      if: ${{ always() && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        comment="${{ github.workspace }}/credhunter-pr-comment.md"
+        if [ -f "$comment" ]; then
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file "$comment" \
+            || echo "CredHunter-X: could not post PR comment (add 'permissions: pull-requests: write' to the workflow)."
+        fi

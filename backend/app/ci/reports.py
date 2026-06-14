@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.reporting.markdown import build_pr_comment
+from app.reporting.markdown import build_pr_comment, redacted_cell
 
 from .decision import CIDecision
 
@@ -51,12 +51,20 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
 
     visible = [item for item in decision.findings if item.action != "ignore"]
     if visible:
-        lines.extend(["| Score | Risk | Action | Type | Location |", "| --- | --- | --- | --- | --- |"])
+        lines.extend(
+            [
+                "| Score | Risk | Action | Type | Secret | Location |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+        )
         for item in visible:
             finding = item.finding
             location = f"{finding.file_path}:{finding.line_number or 1}"
             score = item.risk_score.score if item.risk_score else ""
-            lines.append(f"| {score} | {item.risk_level} | {item.action} | {finding.secret_type} | `{location}` |")
+            secret = redacted_cell(finding)
+            lines.append(
+                f"| {score} | {item.risk_level} | {item.action} | {finding.secret_type} | {secret} | `{location}` |"
+            )
     else:
         lines.append("No reportable findings.")
 

@@ -2,6 +2,20 @@ from __future__ import annotations
 
 from app.ci.decision import CIDecision, FindingDecision
 from app.reporting.remediation import remediation_steps
+from app.scanner.models import NormalizedFinding
+
+
+def redacted_cell(finding: NormalizedFinding) -> str:
+    """Markdown-table cell for a redacted secret value (never the raw secret)."""
+
+    value = (finding.redacted_secret or "").strip()
+    if not value:
+        return "—"
+    # Keep the cell on one line and table-safe.
+    value = value.replace("`", "").replace("|", "\\|").replace("\n", " ")
+    if len(value) > 48:
+        value = value[:45] + "…"
+    return f"`{value}`"
 
 
 def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
@@ -29,15 +43,18 @@ def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
         [
             "### Findings",
             "",
-            "| Score | Risk | Action | Type | Location |",
-            "| --- | --- | --- | --- | --- |",
+            "| Score | Risk | Action | Type | Secret | Location |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
     )
     for item in visible[:max_findings]:
         finding = item.finding
         score = item.risk_score.score if item.risk_score else ""
         location = f"{finding.file_path}:{finding.line_number or 1}"
-        lines.append(f"| {score} | {item.risk_level} | {item.action} | {finding.secret_type} | `{location}` |")
+        secret = redacted_cell(finding)
+        lines.append(
+            f"| {score} | {item.risk_level} | {item.action} | {finding.secret_type} | {secret} | `{location}` |"
+        )
 
     if len(visible) > max_findings:
         lines.append("")

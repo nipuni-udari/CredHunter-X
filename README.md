@@ -26,7 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # to upload SARIF to the Security tab
+      security-events: write   # upload SARIF to the Security tab
+      pull-requests: write     # post the findings comment on PRs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,15 +40,38 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # only needed if enable_llm is true
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: actions/upload-artifact@v4   # download the full JSON + PR-comment reports
+        if: always()
+        with:
+          name: credhunter-report
+          path: |
+            credhunter-report.json
+            credhunter-pr-comment.md
+
+      - uses: github/codeql-action/upload-sarif@v3   # annotate file:line in the Security tab
         if: always()
         with:
           sarif_file: credhunter-report.sarif
 ```
 
-The job fails (exit code 1) when a finding is at or above `fail_on`. It writes
-`credhunter-report.json`, `credhunter-report.sarif`, a PR-comment markdown file,
-and a job summary.
+The `if: always()` on the upload steps matters — without it they are skipped
+exactly when the scan fails, which is when you want the reports.
+
+### Where to see which secret was flagged
+
+The job **fails** (exit code 1) when a finding is at or above `fail_on`. The
+findings — type, redacted value, and `file:line` — show up in three places (the
+raw secret is never printed; values are redacted like `ghp_****st56`):
+
+| Where | What you get |
+| ----- | ------------ |
+| Run **Summary** page (top of the job) | Markdown table of every reportable finding |
+| **Security → Code scanning** tab | Each finding annotated on its file and line (SARIF) |
+| **PR comment** (on pull requests) | The same table, posted inline on the PR |
+| `credhunter-report` **artifact** | Full `credhunter-report.json` + markdown to download |
+
+The single line in the step **log** (`action=…, findings=…`) is just a summary —
+the detail is on the **Summary** page, not in the log.
 
 ### Do I need an OpenAI key or a hosted backend?
 
