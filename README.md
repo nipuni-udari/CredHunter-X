@@ -81,10 +81,10 @@ No to both, unless you want the extras:
 | --------- | --------- |
 | Gitleaks + rule-based filtering (the 89% / 96% result) | nothing extra |
 | The LLM classifier + explanations | an `OPENAI_API_KEY` secret and `enable_llm: "true"` |
-| Persistent scan history, dashboard, triage/feedback | the self-hosted backend (`docker-compose up`) |
+| Persistent scan history + triage/feedback (REST API) | the self-hosted backend (`docker-compose up`) |
 
 The LLM is an HTTPS call to OpenAI, not to a CredHunter server. The bundled
-FastAPI/Mongo/Redis backend is only for storage and the dashboard.
+FastAPI/Mongo/Redis backend is only for storage and the triage/feedback API.
 
 ### Inputs
 

@@ -167,12 +167,9 @@ CredHunter-X/
     .credhunter.yml
     .env.example
     requirements.txt
-  Frontend/
   .github/
   SETUP.md
 ```
-
-The frontend is not required for the current implementation.
 
 ## 3. Create A Python Virtual Environment
 
@@ -643,29 +640,6 @@ With Docker Compose, the `worker`, `redis`, and `mongodb` services are already w
 
 ```powershell
 docker compose up --build
-```
-
-## 23. Frontend Dashboard
-
-A React + TypeScript (Vite) dashboard lives in `Frontend/`. It lets you review and triage
-findings: load a project's findings, see a feedback summary, and mark findings as
-true/false positive or suppress them.
-
-```powershell
-cd Frontend
-npm install
-npm run dev
-```
-
-Open the printed URL (default `http://localhost:5173`). In the Settings panel, set the API
-base URL (default `http://localhost:8000`) and, if the backend has `CREDHUNTER_API_KEYS`
-configured, a matching API key.
-
-Build for production:
-
-```powershell
-npm run build
-npm run preview
 ```
 
 ## 19. Common Commands
