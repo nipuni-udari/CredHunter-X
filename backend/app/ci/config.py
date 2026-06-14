@@ -39,6 +39,9 @@ class LLMConfig:
     provider: str = "openai"
     model: str = "o4-mini"
     min_confidence: float = 0.8
+    # "single"  -> one prompt returns classification + justification together.
+    # "agentic" -> multi-step: classify, then justify/verify (RQ2 ablation).
+    workflow: str = "single"
 
 
 @dataclass(slots=True)
@@ -102,6 +105,7 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
             provider=str(llm.get("provider", "openai")),
             model=str(llm.get("model", "o4-mini")),
             min_confidence=_to_float(llm.get("min_confidence", 0.8), 0.8),
+            workflow=str(llm.get("workflow", "single")).lower(),
         ),
         validation=ValidationConfig(
             enabled=_to_bool(validation.get("enabled", False)),
@@ -202,6 +206,8 @@ def _with_env_overrides(config: CredHunterConfig) -> CredHunterConfig:
         config.llm.model = os.environ["CREDHUNTER_OPENAI_MODEL"]
     if os.getenv("CREDHUNTER_LLM_ENABLED"):
         config.llm.enabled = _to_bool(os.environ["CREDHUNTER_LLM_ENABLED"])
+    if os.getenv("CREDHUNTER_LLM_WORKFLOW"):
+        config.llm.workflow = os.environ["CREDHUNTER_LLM_WORKFLOW"].lower()
     if os.getenv("CREDHUNTER_VALIDATION_ENABLED"):
         config.validation.enabled = _to_bool(os.environ["CREDHUNTER_VALIDATION_ENABLED"])
     if os.getenv("CREDHUNTER_VALIDATION_NETWORK_ENABLED"):

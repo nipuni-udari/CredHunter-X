@@ -52,7 +52,7 @@ class LLMFilterService:
         classifier: Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]] | None = None,
     ) -> None:
         self.config = config
-        self.classifier = classifier or _openai_classifier
+        self.classifier = classifier or classifier_for_workflow(config.llm.workflow)
 
     def classify_findings(
         self,
@@ -138,7 +138,79 @@ def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | 
     return None
 
 
+def classifier_for_workflow(
+    workflow: str,
+) -> Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]]:
+    """Return the OpenAI classifier callable for the configured LLM workflow.
+
+    Used for the RQ2 ablation: a single-prompt classifier versus a multi-step
+    "agentic" classifier (classify, then justify/verify).
+    """
+
+    if (workflow or "single").lower() == "agentic":
+        return _openai_agentic_classifier
+    return _openai_classifier
+
+
 def _openai_classifier(payload: dict[str, Any], config: CredHunterConfig) -> dict[str, Any]:
+    """Single-prompt workflow: one call returns classification + justification."""
+
+    result = _openai_json_call(
+        config=config,
+        instructions=_classify_and_justify_instructions(),
+        payload=payload,
+        max_output_tokens=350,
+    )
+    result.setdefault("metadata", {})["workflow"] = "single"
+    return result
+
+
+def _openai_agentic_classifier(payload: dict[str, Any], config: CredHunterConfig) -> dict[str, Any]:
+    """Multi-step workflow: step 1 classifies, step 2 justifies and self-verifies.
+
+    Step 2 may revise the step-1 label after re-reading the evidence, mirroring a
+    simple "classify then critique" agent loop. Both step results are recorded in
+    metadata so the RQ2 ablation can compare workflows and inspect label revision.
+    """
+
+    step1 = _openai_json_call(
+        config=config,
+        instructions=_classify_only_instructions(),
+        payload=payload,
+        max_output_tokens=120,
+    )
+    initial_label = str(step1.get("classification", "uncertain")).lower()
+    initial_confidence = step1.get("confidence", 0.0)
+
+    step2_payload = {
+        "finding": payload,
+        "preliminary_classification": initial_label,
+        "preliminary_confidence": initial_confidence,
+    }
+    step2 = _openai_json_call(
+        config=config,
+        instructions=_justify_and_verify_instructions(),
+        payload=step2_payload,
+        max_output_tokens=350,
+    )
+
+    result = dict(step2)
+    result.setdefault("classification", initial_label)
+    result.setdefault("confidence", initial_confidence)
+    metadata = result.setdefault("metadata", {})
+    metadata["workflow"] = "agentic"
+    metadata["preliminary_classification"] = initial_label
+    metadata["preliminary_confidence"] = initial_confidence
+    metadata["label_revised"] = str(result.get("classification", "")).lower() != initial_label
+    return result
+
+
+def _openai_json_call(
+    config: CredHunterConfig,
+    instructions: str,
+    payload: dict[str, Any],
+    max_output_tokens: int,
+) -> dict[str, Any]:
     from openai import OpenAI
 
     load_local_env()
@@ -146,24 +218,57 @@ def _openai_classifier(payload: dict[str, Any], config: CredHunterConfig) -> dic
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     response = client.responses.create(
         model=model,
-        instructions=_instructions(),
+        instructions=instructions,
         input=json.dumps(payload, sort_keys=True),
-        max_output_tokens=350,
+        max_output_tokens=max_output_tokens,
         store=False,
     )
     return json.loads(response.output_text)
 
 
-def _instructions() -> str:
+_LABEL_RULES = (
+    "classification must be one of true_positive, likely_true_positive, uncertain, "
+    "likely_false_positive, false_positive. "
+)
+_ACTION_RULES = (
+    "recommended_action must be one of block, warn, ignore, manual_review, keep_rule_decision. "
+)
+_CONSERVATIVE_RULE = (
+    "Be conservative: do not classify provider tokens in source/config files as false positives "
+    "unless context is clearly documentation, placeholder, test fixture, or local-only."
+)
+
+
+def _classify_and_justify_instructions() -> str:
     return (
         "You classify redacted Git secret-scanner findings for false-positive filtering. "
         "Never require or infer the raw secret. Return only valid JSON with keys: "
         "classification, confidence, reason, recommended_action. "
-        "classification must be one of true_positive, likely_true_positive, uncertain, "
-        "likely_false_positive, false_positive. recommended_action must be one of "
-        "block, warn, ignore, manual_review, keep_rule_decision. "
-        "Be conservative: do not classify provider tokens in source/config files as false positives "
-        "unless context is clearly documentation, placeholder, test fixture, or local-only."
+        + _LABEL_RULES
+        + _ACTION_RULES
+        + _CONSERVATIVE_RULE
+    )
+
+
+def _classify_only_instructions() -> str:
+    return (
+        "You are step 1 of a two-step secret-finding triage. Classify the redacted finding only. "
+        "Never require or infer the raw secret. Return only valid JSON with keys: "
+        "classification, confidence. "
+        + _LABEL_RULES
+        + _CONSERVATIVE_RULE
+    )
+
+
+def _justify_and_verify_instructions() -> str:
+    return (
+        "You are step 2 of a two-step secret-finding triage. You receive the finding and a "
+        "preliminary classification. Re-check the evidence, correct the classification if it is "
+        "wrong, then justify it. Never require or infer the raw secret. Return only valid JSON with "
+        "keys: classification, confidence, reason, recommended_action. "
+        + _LABEL_RULES
+        + _ACTION_RULES
+        + _CONSERVATIVE_RULE
     )
 
 
@@ -177,6 +282,7 @@ def _validated_classification(result: dict[str, Any], model: str) -> LLMClassifi
     if recommended_action not in {"block", "warn", "ignore", "manual_review", "keep_rule_decision"}:
         recommended_action = "keep_rule_decision"
 
+    metadata = result.get("metadata")
     return LLMClassification(
         classification=classification,
         confidence=confidence,
@@ -184,6 +290,7 @@ def _validated_classification(result: dict[str, Any], model: str) -> LLMClassifi
         recommended_action=recommended_action,
         model=model,
         used=True,
+        metadata=metadata if isinstance(metadata, dict) else {},
     )
 
 
