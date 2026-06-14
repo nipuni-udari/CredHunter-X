@@ -36,22 +36,26 @@ class CIPhase3Tests(unittest.TestCase):
         sarif_report = output_dir / "credhunter-report.sarif"
         summary = output_dir / "summary.md"
 
-        exit_code = ci_main(
-            [
-                "--gitleaks-report",
-                "tests/fixtures/gitleaks-report.json",
-                "--config",
-                "tests/fixtures/credhunter.yml",
-                "--fail-on",
-                "high",
-                "--json-output",
-                str(json_report),
-                "--sarif-output",
-                str(sarif_report),
-                "--summary-output",
-                str(summary),
-            ]
-        )
+        # Disable the LLM tier and any ambient key so the CLI stays offline.
+        with mock.patch.dict(
+            os.environ, {"CREDHUNTER_LLM_ENABLED": "false", "OPENAI_API_KEY": ""}
+        ):
+            exit_code = ci_main(
+                [
+                    "--gitleaks-report",
+                    "tests/fixtures/gitleaks-report.json",
+                    "--config",
+                    "tests/fixtures/credhunter.yml",
+                    "--fail-on",
+                    "high",
+                    "--json-output",
+                    str(json_report),
+                    "--sarif-output",
+                    str(sarif_report),
+                    "--summary-output",
+                    str(summary),
+                ]
+            )
 
         self.assertEqual(exit_code, 1)
         self.assertTrue(json_report.exists())
@@ -62,6 +66,52 @@ class CIPhase3Tests(unittest.TestCase):
         self.assertEqual(payload["action"], "fail")
         self.assertEqual(payload["blocking_count"], 1)
         self.assertIn("risk_score", payload["findings"][0])
+
+    def test_ci_cli_runs_llm_when_enabled(self):
+        from app.services.llm_filter_service import LLMClassification
+
+        class FakeLLMService:
+            def __init__(self, config):
+                self.config = config
+
+            def classify_findings(self, findings, config=None):
+                return {
+                    finding.finding_id: LLMClassification(
+                        classification="likely_true_positive",
+                        confidence=0.9,
+                        reason="Looks like a real token in a source file.",
+                        recommended_action="warn",
+                        model="fake",
+                        used=True,
+                    )
+                    for finding in findings
+                }
+
+        output_dir = Path("tests/fixtures/generated")
+        output_dir.mkdir(exist_ok=True)
+        json_report = output_dir / "credhunter-llm-report.json"
+        sarif_report = output_dir / "credhunter-llm-report.sarif"
+
+        with mock.patch("app.ci.cli.LLMFilterService", FakeLLMService):
+            ci_main(
+                [
+                    "--gitleaks-report",
+                    "tests/fixtures/gitleaks-report.json",
+                    "--config",
+                    "tests/fixtures/credhunter.yml",
+                    "--enable-llm",
+                    "--json-output",
+                    str(json_report),
+                    "--sarif-output",
+                    str(sarif_report),
+                ]
+            )
+
+        payload = json.loads(json_report.read_text(encoding="utf-8"))
+        self.assertIn("llm_filter", payload["findings"][0])
+        self.assertEqual(
+            payload["findings"][0]["llm_filter"]["classification"], "likely_true_positive"
+        )
 
     def test_build_backend_scan_payload(self):
         config = load_config("tests/fixtures/credhunter.yml")

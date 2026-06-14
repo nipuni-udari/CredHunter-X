@@ -1,0 +1,91 @@
+name: CredHunter-X
+description: >-
+  Scan a repository for hardcoded secrets with Gitleaks, then reduce false
+  positives with CredHunter-X rule-based (and optional LLM) filtering. Writes a
+  SARIF report, a JSON report, and a job summary, and fails the job on findings
+  at or above the configured risk level.
+author: CredHunter-X
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  scan_path:
+    description: Path within the repository to scan.
+    required: false
+    default: "."
+  config:
+    description: Path (relative to the repo root) to a .credhunter.yml config. Optional; sensible defaults are used if absent.
+    required: false
+    default: .credhunter.yml
+  fail_on:
+    description: Risk level that fails the job (low | medium | high | critical).
+    required: false
+    default: high
+  enable_llm:
+    description: Run the optional LLM classifier (requires the OPENAI_API_KEY env var on the step).
+    required: false
+    default: "false"
+  llm_workflow:
+    description: LLM workflow when enabled (single | agentic).
+    required: false
+    default: single
+  gitleaks_version:
+    description: Gitleaks release version to download.
+    required: false
+    default: "8.18.4"
+  python_version:
+    description: Python version used to run CredHunter-X.
+    required: false
+    default: "3.11"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install Gitleaks
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="${{ inputs.gitleaks_version }}"
+        url="https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz"
+        curl -sSL -o /tmp/gitleaks.tar.gz "$url"
+        tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+        sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+        gitleaks version
+
+    - name: Run Gitleaks
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        gitleaks detect \
+          --source "${{ inputs.scan_path }}" \
+          --report-format json \
+          --report-path "${{ runner.temp }}/gitleaks-report.json" \
+          --no-banner \
+          --exit-code 0
+
+    - name: Install CredHunter-X dependencies
+      shell: bash
+      run: pip install --quiet -r "${{ github.action_path }}/backend/requirements.txt"
+
+    - name: Run CredHunter-X
+      shell: bash
+      working-directory: ${{ github.action_path }}/backend
+      env:
+        CREDHUNTER_LLM_ENABLED: ${{ inputs.enable_llm }}
+        CREDHUNTER_LLM_WORKFLOW: ${{ inputs.llm_workflow }}
+      run: |
+        python -m app.ci.cli \
+          --gitleaks-report "${{ runner.temp }}/gitleaks-report.json" \
+          --config "${{ github.workspace }}/${{ inputs.config }}" \
+          --fail-on "${{ inputs.fail_on }}" \
+          --json-output "${{ github.workspace }}/credhunter-report.json" \
+          --sarif-output "${{ github.workspace }}/credhunter-report.sarif" \
+          --pr-comment-output "${{ github.workspace }}/credhunter-pr-comment.md" \
+          --summary-output "${GITHUB_STEP_SUMMARY}"

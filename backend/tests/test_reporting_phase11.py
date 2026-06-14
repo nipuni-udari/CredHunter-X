@@ -1,6 +1,8 @@
 import json
+import os
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
@@ -39,22 +41,27 @@ class ReportingPhase11Tests(unittest.TestCase):
         output_dir = Path("tests/fixtures/generated")
         output_path = output_dir / "phase11-pr-comment.md"
 
-        exit_code = ci_main(
-            [
-                "--gitleaks-report",
-                "tests/fixtures/gitleaks-report.json",
-                "--config",
-                "tests/fixtures/credhunter.yml",
-                "--fail-on",
-                "critical",
-                "--json-output",
-                str(output_dir / "phase11-report.json"),
-                "--sarif-output",
-                str(output_dir / "phase11-report.sarif"),
-                "--pr-comment-output",
-                str(output_path),
-            ]
-        )
+        # Keep the CLI deterministic and offline: disable the LLM tier and any
+        # ambient OPENAI_API_KEY (e.g. from a developer's backend/.env).
+        with mock.patch.dict(
+            os.environ, {"CREDHUNTER_LLM_ENABLED": "false", "OPENAI_API_KEY": ""}
+        ):
+            exit_code = ci_main(
+                [
+                    "--gitleaks-report",
+                    "tests/fixtures/gitleaks-report.json",
+                    "--config",
+                    "tests/fixtures/credhunter.yml",
+                    "--fail-on",
+                    "critical",
+                    "--json-output",
+                    str(output_dir / "phase11-report.json"),
+                    "--sarif-output",
+                    str(output_dir / "phase11-report.sarif"),
+                    "--pr-comment-output",
+                    str(output_path),
+                ]
+            )
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(output_path.exists())

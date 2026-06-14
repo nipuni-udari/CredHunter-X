@@ -5,6 +5,7 @@ import os
 import sys
 
 from app.scanner.gitleaks_parser import parse_gitleaks_report
+from app.services.llm_filter_service import LLMFilterService
 
 from .backend_client import BackendSubmissionError, submit_scan_to_backend
 from .config import load_config
@@ -24,6 +25,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--summary-output", help="Output Markdown summary path. Defaults to GITHUB_STEP_SUMMARY.")
     parser.add_argument("--pr-comment-output", help="Optional PR comment Markdown output path.")
     parser.add_argument("--fail-on", help="Override configured fail_on threshold.")
+    parser.add_argument(
+        "--enable-llm",
+        action="store_true",
+        help="Run the LLM classifier on ambiguous findings (requires OPENAI_API_KEY).",
+    )
+    parser.add_argument(
+        "--llm-workflow",
+        choices=["single", "agentic"],
+        help="LLM workflow when LLM is enabled (default: configured value).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -31,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(args.config)
         if args.fail_on:
             config.scan.fail_on = args.fail_on.lower()
+        if args.enable_llm:
+            config.llm.enabled = True
+        if args.llm_workflow:
+            config.llm.workflow = args.llm_workflow
 
         if os.path.exists(args.gitleaks_report):
             findings = parse_gitleaks_report(args.gitleaks_report)
@@ -41,7 +56,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             findings = []
 
-        decision = evaluate_findings(findings, config)
+        # The LLM step is optional and self-contained: it calls OpenAI directly,
+        # so no CredHunter backend needs to be hosted. When disabled, or when no
+        # API key is present, it is skipped and the deterministic rules decide.
+        llm_classifications = None
+        if config.llm.enabled and findings:
+            llm_classifications = LLMFilterService(config).classify_findings(findings, config)
+
+        decision = evaluate_findings(findings, config, llm_classifications)
         backend_scan = None
 
         if config.backend.url:
