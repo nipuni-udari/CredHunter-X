@@ -40,16 +40,13 @@ jobs:
           fail_on: high
           json_output: ../credhunter-report.json
           sarif_output: ../credhunter-report.sarif
-          pr_comment_output: ../credhunter-pr-comment.md
 
       - name: Upload CredHunter-X JSON report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: credhunter-report
-          path: |
-            credhunter-report.json
-            credhunter-pr-comment.md
+          path: credhunter-report.json
 
       - name: Upload CredHunter-X SARIF
         uses: github/codeql-action/upload-sarif@v3

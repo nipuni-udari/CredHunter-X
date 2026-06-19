@@ -23,9 +23,9 @@ inputs:
     required: false
     default: ../credhunter-report.sarif
   pr_comment_output:
-    description: Path for CredHunter-X PR comment Markdown output.
+    description: Optional path for CredHunter-X PR comment Markdown output. Leave empty to skip the Markdown report (JSON is the canonical report).
     required: false
-    default: ../credhunter-pr-comment.md
+    default: ""
 
 runs:
   using: composite
@@ -33,11 +33,15 @@ runs:
     - name: Run CredHunter-X CI decision
       shell: bash
       run: |
-        python -m app.ci.cli \
-          --gitleaks-report "${{ inputs.gitleaks_report }}" \
-          --config "${{ inputs.config }}" \
-          --fail-on "${{ inputs.fail_on }}" \
-          --json-output "${{ inputs.json_output }}" \
-          --sarif-output "${{ inputs.sarif_output }}" \
-          --pr-comment-output "${{ inputs.pr_comment_output }}"
+        args=(
+          --gitleaks-report "${{ inputs.gitleaks_report }}"
+          --config "${{ inputs.config }}"
+          --fail-on "${{ inputs.fail_on }}"
+          --json-output "${{ inputs.json_output }}"
+          --sarif-output "${{ inputs.sarif_output }}"
+        )
+        if [ -n "${{ inputs.pr_comment_output }}" ]; then
+          args+=(--pr-comment-output "${{ inputs.pr_comment_output }}")
+        fi
+        python -m app.ci.cli "${args[@]}"
       working-directory: backend

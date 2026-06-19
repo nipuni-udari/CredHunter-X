@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.reporting.remediation import remediation_steps
 from app.scanner.models import NormalizedFinding
 from app.services.false_positive_filter import FalsePositiveAssessment, assess_false_positive
 from app.services.llm_filter_service import LLMClassification
@@ -27,6 +28,8 @@ class FindingDecision:
         payload["risk_level"] = self.risk_level
         payload["action"] = self.action
         payload["decision_reason"] = self.reason
+        if self.action != "ignore":
+            payload["remediation"] = remediation_steps(self.finding.secret_type)
         if self.false_positive_assessment:
             payload["false_positive_filter"] = self.false_positive_assessment.to_metadata()
         if self.llm_classification:

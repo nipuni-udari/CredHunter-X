@@ -40,13 +40,11 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # only needed if enable_llm is true
 
-      - uses: actions/upload-artifact@v4   # download the full JSON + PR-comment reports
+      - uses: actions/upload-artifact@v4   # download the full JSON report (with per-finding remediation)
         if: always()
         with:
           name: credhunter-report
-          path: |
-            credhunter-report.json
-            credhunter-pr-comment.md
+          path: credhunter-report.json
 
       - uses: github/codeql-action/upload-sarif@v3   # annotate file:line in the Security tab
         if: always()
@@ -68,7 +66,7 @@ raw secret is never printed; values are redacted like `ghp_****st56`):
 | Run **Summary** page (top of the job) | Markdown table of every reportable finding |
 | **Security → Code scanning** tab | Each finding annotated on its file and line (SARIF) |
 | **PR comment** (on pull requests) | The same table, posted inline on the PR |
-| `credhunter-report` **artifact** | Full `credhunter-report.json` + markdown to download |
+| `credhunter-report` **artifact** | Full `credhunter-report.json` (per-finding `remediation` steps) to download |
 
 The single line in the step **log** (`action=…, findings=…`) is just a summary —
 the detail is on the **Summary** page, not in the log.
