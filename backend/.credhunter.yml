@@ -13,10 +13,18 @@ backend:
   url:
 
 llm:
-  enabled: false
+  # The LLM pipeline (classify -> rank -> explain -> remediate) is ON by default.
+  # Every stage degrades gracefully: without OPENAI_API_KEY, or on any API error,
+  # the stage is skipped and the deterministic rule filter / risk score / template
+  # remediation take over, so a full result is always produced offline.
+  enabled: true
   provider: openai
   model: o4-mini
   min_confidence: 0.8
+  workflow: single   # single | agentic (classifier ablation)
+  rank: true         # LLM Ranker: refine risk score + prioritisation
+  explain: true      # LLM Explainer: developer-facing rationale
+  remediate: true    # LLM Remediation: context-specific fix steps
 
 validation:
   enabled: false

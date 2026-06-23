@@ -1,8 +1,16 @@
 # Phase 6 LLM-Based False-Positive Filtering
 
+> **Note (Phase 14):** This classifier is now **stage 1 of the four-stage LLM
+> pipeline** (classify → rank → explain → remediate; see
+> `doc/phase-14/llm-pipeline-stages.md`). The whole pipeline is **on by default**
+> and degrades gracefully — every stage, including this one, is skipped when no
+> `OPENAI_API_KEY` is present and the deterministic engine takes over. The
+> "disabled by default" wording below is historical; the runtime default is now
+> `llm.enabled: true`.
+
 ## Purpose
 
-Phase 6 adds optional LLM-based classification for ambiguous findings that remain after deterministic rule-based filtering.
+Phase 6 adds LLM-based classification for ambiguous findings that remain after deterministic rule-based filtering.
 
 The LLM layer is designed to reduce false positives without sending raw secrets to an external model.
 
@@ -22,14 +30,18 @@ Integrated into:
 
 ## Configuration
 
-LLM filtering is disabled by default.
+The LLM pipeline (including this classifier) is enabled by default and no-ops without an API key.
 
 ```yaml
 llm:
-  enabled: false
+  enabled: true
   provider: openai
   model: o4-mini
   min_confidence: 0.8
+  workflow: single   # single | agentic
+  rank: true         # downstream stages, see phase-14
+  explain: true
+  remediate: true
 ```
 
 To enable it locally:

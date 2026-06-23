@@ -35,13 +35,23 @@ class BackendConfig:
 
 @dataclass(slots=True)
 class LLMConfig:
-    enabled: bool = False
+    # The whole LLM pipeline is ON by default. Every stage degrades gracefully:
+    # with no OPENAI_API_KEY (or on any API error) each stage is skipped and the
+    # deterministic rule filter / risk score / template remediation take over, so
+    # the tool still produces a full result offline.
+    enabled: bool = True
     provider: str = "openai"
     model: str = "o4-mini"
     min_confidence: float = 0.8
     # "single"  -> one prompt returns classification + justification together.
     # "agentic" -> multi-step: classify, then justify/verify (RQ2 ablation).
     workflow: str = "single"
+    # Downstream LLM pipeline stages, each gated independently and ON by default.
+    # They run only when ``enabled`` is also true and a key is present; otherwise
+    # the deterministic ranker / template remediation are used instead.
+    rank: bool = True         # LLM Ranker: risk score + prioritisation.
+    explain: bool = True      # LLM Explainer: developer-facing rationale.
+    remediate: bool = True    # LLM Remediation: context-specific fix steps.
 
 
 @dataclass(slots=True)
@@ -101,11 +111,14 @@ def _from_dict(data: dict[str, Any]) -> CredHunterConfig:
         ),
         backend=BackendConfig(url=_optional_string(backend.get("url"))),
         llm=LLMConfig(
-            enabled=_to_bool(llm.get("enabled", False)),
+            enabled=_to_bool(llm.get("enabled", True)),
             provider=str(llm.get("provider", "openai")),
             model=str(llm.get("model", "o4-mini")),
             min_confidence=_to_float(llm.get("min_confidence", 0.8), 0.8),
             workflow=str(llm.get("workflow", "single")).lower(),
+            rank=_to_bool(llm.get("rank", True)),
+            explain=_to_bool(llm.get("explain", True)),
+            remediate=_to_bool(llm.get("remediate", True)),
         ),
         validation=ValidationConfig(
             enabled=_to_bool(validation.get("enabled", False)),
@@ -208,6 +221,12 @@ def _with_env_overrides(config: CredHunterConfig) -> CredHunterConfig:
         config.llm.enabled = _to_bool(os.environ["CREDHUNTER_LLM_ENABLED"])
     if os.getenv("CREDHUNTER_LLM_WORKFLOW"):
         config.llm.workflow = os.environ["CREDHUNTER_LLM_WORKFLOW"].lower()
+    if os.getenv("CREDHUNTER_LLM_RANK"):
+        config.llm.rank = _to_bool(os.environ["CREDHUNTER_LLM_RANK"])
+    if os.getenv("CREDHUNTER_LLM_EXPLAIN"):
+        config.llm.explain = _to_bool(os.environ["CREDHUNTER_LLM_EXPLAIN"])
+    if os.getenv("CREDHUNTER_LLM_REMEDIATE"):
+        config.llm.remediate = _to_bool(os.environ["CREDHUNTER_LLM_REMEDIATE"])
     if os.getenv("CREDHUNTER_VALIDATION_ENABLED"):
         config.validation.enabled = _to_bool(os.environ["CREDHUNTER_VALIDATION_ENABLED"])
     if os.getenv("CREDHUNTER_VALIDATION_NETWORK_ENABLED"):

@@ -92,7 +92,12 @@ class CIPhase3Tests(unittest.TestCase):
         json_report = output_dir / "credhunter-llm-report.json"
         sarif_report = output_dir / "credhunter-llm-report.sarif"
 
-        with mock.patch("app.ci.cli.LLMFilterService", FakeLLMService):
+        # The classifier is mocked; the downstream ranker/explainer/remediation
+        # stages are on by default, so clear any ambient key to keep them offline
+        # (they skip gracefully and fall back to deterministic output).
+        with mock.patch("app.ci.cli.LLMFilterService", FakeLLMService), mock.patch.dict(
+            os.environ, {"OPENAI_API_KEY": ""}
+        ):
             ci_main(
                 [
                     "--gitleaks-report",

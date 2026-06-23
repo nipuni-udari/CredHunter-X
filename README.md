@@ -1,21 +1,36 @@
 # CredHunter-X
 
-LLM-assisted secret detection and false-positive reduction for source code.
+LLM-assisted secret detection, prioritisation, and remediation for source code.
 
 CredHunter-X runs [Gitleaks](https://github.com/gitleaks/gitleaks) as a
-high-recall first-stage scanner, then reduces its false positives with a
-deterministic rule layer and an optional LLM classifier that also explains each
-decision. On the CredData Python benchmark the rule layer alone removes **~89%
+high-recall first-stage scanner, then runs every candidate through a four-stage
+LLM pipeline that classifies, ranks, explains, and proposes a fix — layered on
+top of a deterministic rule/scoring engine that acts as both a fast path and a
+safety net. On the CredData Python benchmark the rule layer alone removes **~89%
 of false positives while preserving ~96% recall** on real leaked credentials.
 
 ```
-gitleaks  →  normalize  →  rule filter  →  (optional) LLM filter  →  risk score  →  CI decision
+gitleaks → normalize → rule filter → LLM classify → LLM rank → LLM explain → LLM remediate → CI decision
 ```
+
+**The LLM pipeline is on by default and degrades gracefully.** Each stage runs
+only when an `OPENAI_API_KEY` is available; with no key (or on any API error)
+that stage is skipped and the deterministic rule filter, risk score, and
+per-type remediation templates take over. So CredHunter-X always produces a full
+result — adding a key upgrades the output, it is never required.
+
+| Stage | LLM on (key present) | Fallback (no key / error) |
+| ----- | -------------------- | ------------------------- |
+| Classify | LLM labels each candidate real/false-positive with a reason | Deterministic rule filter decides |
+| Rank | LLM refines the 0–100 risk score and prioritisation | Weighted deterministic risk score |
+| Explain | LLM writes a developer-facing rationale | Rule/classification reason |
+| Remediate | LLM proposes fix steps tailored to type + location | Static per-type remediation template |
 
 ## Use it in your repo (GitHub Actions)
 
-Add one step to your workflow. No server to host — the optional LLM tier calls
-OpenAI directly, so all you add for it is a repository secret.
+Add one step to your workflow. No server to host — the LLM pipeline calls OpenAI
+directly, so all you add to enable it is a repository secret. Omit the secret and
+the deterministic engine runs on its own.
 
 ```yaml
 name: Secret Scan
@@ -36,9 +51,10 @@ jobs:
       - uses: nipuni-udari/CredHunter-X@v1
         with:
           fail_on: high
-          # enable_llm: "true"   # uncomment to turn on the LLM tier
+          # The LLM pipeline is on by default; provide a key to activate it.
+          # Set enable_llm: "false" to force the deterministic-only engine.
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # only needed if enable_llm is true
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # omit to run deterministic-only
 
       - uses: actions/upload-artifact@v4   # download the full JSON report (with per-finding remediation)
         if: always()
@@ -77,12 +93,14 @@ No to both, unless you want the extras:
 
 | You want… | You need… |
 | --------- | --------- |
-| Gitleaks + rule-based filtering (the 89% / 96% result) | nothing extra |
-| The LLM classifier + explanations | an `OPENAI_API_KEY` secret and `enable_llm: "true"` |
+| Gitleaks + rule-based filtering (the 89% / 96% result) | nothing extra — the LLM stages skip without a key |
+| The full LLM pipeline (classify + rank + explain + remediate) | an `OPENAI_API_KEY` secret |
 | Persistent scan history + triage/feedback (REST API) | the self-hosted backend (`docker-compose up`) |
 
-The LLM is an HTTPS call to OpenAI, not to a CredHunter server. The bundled
-FastAPI/Mongo/Redis backend is only for storage and the triage/feedback API.
+The LLM is an HTTPS call to OpenAI, not to a CredHunter server. It is invoked
+only when a key is present, so a no-key run makes no network calls and incurs no
+cost. The bundled FastAPI/Mongo/Redis backend is only for storage and the
+triage/feedback API.
 
 ### Inputs
 
@@ -91,8 +109,11 @@ FastAPI/Mongo/Redis backend is only for storage and the triage/feedback API.
 | `scan_path` | `.` | Path within the repo to scan. |
 | `config` | `.credhunter.yml` | Optional config file at your repo root. |
 | `fail_on` | `high` | Risk level that fails the job (`low`/`medium`/`high`/`critical`). |
-| `enable_llm` | `false` | Run the optional LLM classifier. |
-| `llm_workflow` | `single` | LLM workflow (`single` or `agentic`). |
+| `enable_llm` | `true` | Run the LLM pipeline (no-ops without `OPENAI_API_KEY`). Set `"false"` to force deterministic-only. |
+| `llm_workflow` | `single` | Classifier workflow (`single` or `agentic`). |
+| `llm_rank` | `true` | Run the LLM Ranker stage. |
+| `llm_explain` | `true` | Run the LLM Explainer stage. |
+| `llm_remediate` | `true` | Run the LLM Remediation stage. |
 
 ## Configuration (`.credhunter.yml`)
 
@@ -107,18 +128,26 @@ filters:
   min_entropy: 1.8          # generic findings below this are likely false positives
   min_secret_length: 4
 llm:
-  enabled: false            # also toggled by enable_llm / OPENAI_API_KEY
-  workflow: single          # single | agentic
+  enabled: true             # whole pipeline on by default; no-ops without a key
+  workflow: single          # single | agentic (classifier ablation)
   model: o4-mini
+  rank: true                # LLM Ranker:    refine risk score + prioritisation
+  explain: true             # LLM Explainer: developer-facing rationale
+  remediate: true           # LLM Remediation: context-specific fix steps
 ```
+
+Set any flag to `false` (or run without `OPENAI_API_KEY`) to fall back to the
+deterministic path for that stage.
 
 ## Use it locally (no Actions)
 
 ```bash
 gitleaks detect --report-format json --report-path gitleaks-report.json
 cd backend && pip install -r requirements.txt
+# LLM pipeline runs automatically when OPENAI_API_KEY is set; otherwise deterministic-only.
 python -m app.ci.cli --gitleaks-report ../gitleaks-report.json --fail-on high
-# add --enable-llm (with OPENAI_API_KEY set) for the LLM tier
+# force deterministic-only regardless of any key:
+CREDHUNTER_LLM_ENABLED=false python -m app.ci.cli --gitleaks-report ../gitleaks-report.json --fail-on high
 ```
 
 ## Research harnesses

@@ -1,9 +1,11 @@
 name: CredHunter-X
 description: >-
-  Scan a repository for hardcoded secrets with Gitleaks, then reduce false
-  positives with CredHunter-X rule-based (and optional LLM) filtering. Writes a
-  SARIF report, a JSON report, and a job summary, and fails the job on findings
-  at or above the configured risk level.
+  Scan a repository for hardcoded secrets with Gitleaks, then classify, rank,
+  explain, and propose remediation for each finding with CredHunter-X's
+  rule-based engine and on-by-default LLM pipeline (which falls back to the
+  deterministic engine when no OPENAI_API_KEY is present). Writes a SARIF report,
+  a JSON report, and a job summary, and fails the job on findings at or above the
+  configured risk level.
 author: CredHunter-X
 
 branding:
@@ -24,13 +26,29 @@ inputs:
     required: false
     default: high
   enable_llm:
-    description: Run the optional LLM classifier (requires the OPENAI_API_KEY env var on the step).
+    description: >-
+      Run the LLM pipeline (classify -> rank -> explain -> remediate). On by
+      default; it only calls OpenAI when the OPENAI_API_KEY env var is present on
+      the step, otherwise every stage falls back to the deterministic engine. Set
+      to "false" to force deterministic-only even when a key is available.
     required: false
-    default: "false"
+    default: "true"
   llm_workflow:
-    description: LLM workflow when enabled (single | agentic).
+    description: Classifier workflow when the LLM runs (single | agentic).
     required: false
     default: single
+  llm_rank:
+    description: Run the LLM Ranker stage (refines the risk score).
+    required: false
+    default: "true"
+  llm_explain:
+    description: Run the LLM Explainer stage (developer-facing rationale).
+    required: false
+    default: "true"
+  llm_remediate:
+    description: Run the LLM Remediation stage (context-specific fix steps).
+    required: false
+    default: "true"
   gitleaks_version:
     description: Gitleaks release version to download.
     required: false
@@ -81,6 +99,9 @@ runs:
       env:
         CREDHUNTER_LLM_ENABLED: ${{ inputs.enable_llm }}
         CREDHUNTER_LLM_WORKFLOW: ${{ inputs.llm_workflow }}
+        CREDHUNTER_LLM_RANK: ${{ inputs.llm_rank }}
+        CREDHUNTER_LLM_EXPLAIN: ${{ inputs.llm_explain }}
+        CREDHUNTER_LLM_REMEDIATE: ${{ inputs.llm_remediate }}
       run: |
         python -m app.ci.cli \
           --gitleaks-report "${{ runner.temp }}/gitleaks-report.json" \

@@ -2,7 +2,7 @@
 
 This guide explains how to set up CredHunter-X from the beginning after cloning the project.
 
-CredHunter-X is a Git leak detection and false-positive filtering system. The current implementation focuses on the backend, GitHub Actions integration, Gitleaks report processing, rule-based filtering, optional LLM filtering, optional validation, risk scoring, CredData testing/evaluation, and reporting.
+CredHunter-X is a Git leak detection and false-positive filtering system. The current implementation focuses on the backend, GitHub Actions integration, Gitleaks report processing, rule-based filtering, a four-stage LLM pipeline (classification, ranking, explanation, remediation) that is on by default and falls back to the deterministic engine when no API key is present, optional validation, risk scoring, CredData testing/evaluation, and reporting.
 
 ## 1. Prerequisites
 
@@ -231,7 +231,9 @@ Open `backend/.env` and configure values if needed:
 ```text
 OPENAI_API_KEY=
 CREDHUNTER_OPENAI_MODEL=o4-mini
-CREDHUNTER_LLM_ENABLED=false
+# The LLM pipeline is ON by default. It only calls OpenAI when OPENAI_API_KEY is
+# set; without a key every LLM stage is skipped and the deterministic engine runs.
+# Set CREDHUNTER_LLM_ENABLED=false to force deterministic-only even with a key.
 CREDHUNTER_VALIDATION_ENABLED=false
 CREDHUNTER_VALIDATION_NETWORK_ENABLED=false
 CREDHUNTER_API_KEYS=
@@ -241,12 +243,13 @@ CREDHUNTER_QUEUE_NAME=credhunter
 
 - `CREDHUNTER_API_KEYS` is a comma-separated list of accepted API keys. When empty, API authentication is disabled (safe for local development). See section 21.
 - `CREDHUNTER_REDIS_URL` enables background scan processing via the worker. When unset or unreachable, scans are processed inline. See section 22.
+- The LLM pipeline stages can be toggled individually with `CREDHUNTER_LLM_RANK`, `CREDHUNTER_LLM_EXPLAIN`, and `CREDHUNTER_LLM_REMEDIATE` (all default `true`).
 
 Important:
 
 - Do not commit `backend/.env`.
 - Do not paste real API keys into source files.
-- Keep `CREDHUNTER_LLM_ENABLED=false` unless you intentionally want to use the OpenAI API.
+- Leaving `OPENAI_API_KEY` empty is safe: the LLM stages no-op and make no network calls. Add a key only when you want LLM output.
 - Keep `CREDHUNTER_VALIDATION_NETWORK_ENABLED=false` unless you intentionally want provider validation network calls.
 
 ## 6. Review CredHunter Configuration
@@ -275,10 +278,14 @@ backend:
   url:
 
 llm:
-  enabled: false
+  enabled: true
   provider: openai
   model: o4-mini
   min_confidence: 0.8
+  workflow: single
+  rank: true
+  explain: true
+  remediate: true
 
 validation:
   enabled: false
@@ -290,7 +297,8 @@ validation:
   timeout_seconds: 5
 ```
 
-For local development, the defaults are safe.
+For local development, the defaults are safe: the LLM pipeline is on but no-ops
+without `OPENAI_API_KEY`, so no network calls are made until you add a key.
 
 ## 7. Verify The Dataset
 
@@ -491,19 +499,36 @@ findings
 audit_logs
 ```
 
-## 15. LLM Filtering, Optional
+## 15. LLM Pipeline
 
-LLM filtering is disabled by default.
+The LLM pipeline has four stages that run in order on every Gitleaks candidate:
 
-To enable it, edit `backend/.env`:
+```text
+LLM classify  ->  LLM rank  ->  LLM explain  ->  LLM remediate
+```
+
+- **Classify** (`llm_filter_service.py`) — labels each candidate real / false
+  positive with a confidence and reason.
+- **Rank** (`llm_ranker_service.py`) — refines the deterministic 0–100 risk
+  score to prioritise findings.
+- **Explain** (`llm_explainer_service.py`) — writes a developer-facing rationale
+  for the PR comment.
+- **Remediate** (`llm_remediation_service.py`) — proposes fix steps tailored to
+  the secret type and file location.
+
+All stages are **on by default**. They call OpenAI only when `OPENAI_API_KEY` is
+set; without a key (or on any API error) each stage is skipped and the
+deterministic rule filter / risk score / per-type remediation template is used,
+so a full result is always produced.
+
+To activate the pipeline, add a key to `backend/.env`:
 
 ```text
 OPENAI_API_KEY=<your-key>
 CREDHUNTER_OPENAI_MODEL=o4-mini
-CREDHUNTER_LLM_ENABLED=true
 ```
 
-Then update `.credhunter.yml` if needed:
+`.credhunter.yml` controls the stages (all default `true`):
 
 ```yaml
 llm:
@@ -511,14 +536,23 @@ llm:
   provider: openai
   model: o4-mini
   min_confidence: 0.8
+  workflow: single   # single | agentic (classifier ablation)
+  rank: true
+  explain: true
+  remediate: true
 ```
+
+Toggle individual stages from the CLI with `--llm-rank`, `--llm-explain`,
+`--llm-remediate` (or disable them via `rank: false` etc.), and force the whole
+pipeline off with `CREDHUNTER_LLM_ENABLED=false`.
 
 Safety behavior:
 
-- Raw secrets are not sent to the LLM.
-- Redacted context is used.
-- Private keys are not downgraded by the LLM.
-- If no API key is configured, the system falls back to deterministic rules.
+- Raw secrets are never sent to the LLM; only redacted values and safe metadata.
+- Private keys are never downgraded by the classifier and never ranked below
+  critical.
+- If no API key is configured, or any stage errors, the system falls back to the
+  deterministic engine for that stage.
 
 ## 16. Secret Validation, Optional
 
@@ -703,14 +737,15 @@ CREDHUNTER_MONGODB_URI
 
 must be set before starting `uvicorn`.
 
-If LLM filtering is skipped:
+If the LLM stages are skipped (output falls back to deterministic), the key is
+missing. Set:
 
 ```text
-CREDHUNTER_LLM_ENABLED=true
 OPENAI_API_KEY=<your-key>
 ```
 
-must be configured.
+The pipeline is enabled by default, so the key is all that is required. Make sure
+`CREDHUNTER_LLM_ENABLED` is not set to `false` in your environment or `.env`.
 
 ## 20. Security Rules
 
