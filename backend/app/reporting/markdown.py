@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from app.ci.decision import CIDecision, FindingDecision
-from app.reporting.remediation import remediation_steps
 from app.scanner.models import NormalizedFinding
 
 
@@ -62,7 +61,7 @@ def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
 
     top = visible[0]
     lines.extend(["", "### Recommended Next Steps", ""])
-    for step in remediation_steps(top.finding.secret_type):
+    for step in top.remediation():
         lines.append(f"- {step}")
 
     lines.extend(["", "### Why This Was Reported", ""])
@@ -108,7 +107,7 @@ def build_feedback_summary(findings: list[dict]) -> dict:
 
 
 def _finding_reason(item: FindingDecision) -> str:
-    parts = [item.reason]
+    parts = [item.explanation()]
     if item.false_positive_assessment:
         reasons = item.false_positive_assessment.reasons
         if reasons:

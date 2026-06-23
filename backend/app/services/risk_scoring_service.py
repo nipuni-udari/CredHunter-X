@@ -26,6 +26,9 @@ class RiskScore:
     risk_level: str
     recommended_action: str
     components: list[RiskComponent] = field(default_factory=list)
+    # "rules" -> deterministic composite score; "llm" -> refined by the LLM Ranker.
+    source: str = "rules"
+    rationale: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -33,13 +36,18 @@ class RiskScore:
             "risk_level": self.risk_level,
             "recommended_action": self.recommended_action,
             "components": [component.to_dict() for component in self.components],
+            "source": self.source,
+            "rationale": self.rationale,
         }
 
 
 SECRET_TYPE_WEIGHTS = {
     "private_key": 50,
     "aws_access_key": 40,
+    "stripe_api_key": 40,
     "github_token": 35,
+    "google_api_key": 35,
+    "slack_token": 30,
     "database_url": 30,
     "oauth_token": 30,
     "jwt": 20,
@@ -182,7 +190,9 @@ def _needs_conservative_medium_floor(
     return True
 
 
-def _risk_level_from_score(score: int) -> str:
+def risk_level_from_score(score: int) -> str:
+    """Map a 0-100 risk score to a risk level (shared by the rules and LLM rankers)."""
+
     if score >= 80:
         return "critical"
     if score >= 60:
@@ -192,13 +202,20 @@ def _risk_level_from_score(score: int) -> str:
     return "low"
 
 
-def _recommended_action(risk_level: str) -> str:
+def recommended_action_for_level(risk_level: str) -> str:
+    """Map a risk level to its default CI action (shared by both rankers)."""
+
     return {
         "critical": "fail",
         "high": "manual_review",
         "medium": "warn",
         "low": "pass",
     }[risk_level]
+
+
+# Backwards-compatible internal aliases.
+_risk_level_from_score = risk_level_from_score
+_recommended_action = recommended_action_for_level
 
 
 def _clamp(score: int) -> int:

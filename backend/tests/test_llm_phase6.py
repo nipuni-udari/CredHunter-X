@@ -31,7 +31,9 @@ class LLMPhase6Tests(unittest.TestCase):
 
     def test_llm_disabled_returns_skipped_assessment(self):
         finding = _github_docs_finding()
-        service = LLMFilterService(CredHunterConfig())
+        config = CredHunterConfig()
+        config.llm.enabled = False  # the pipeline is on by default; opt out here.
+        service = LLMFilterService(config)
 
         assessment = service.classify_finding(finding)
 

@@ -1,5 +1,12 @@
 # CredHunter-X Git Leak Pipeline Implementation Plan
 
+> **Status note (Phase 14):** The "LLM-based context classification" below has
+> been generalised into a full four-stage LLM pipeline — **classify → rank →
+> explain → remediate** — that is **on by default** and falls back to the
+> deterministic engine when no `OPENAI_API_KEY` is present. See
+> `doc/phase-14/llm-pipeline-stages.md`. Illustrative metrics in this historical
+> plan predate that work.
+
 ## 1. Project Feasibility
 
 This project is technically possible and is a strong next-level direction for Git leak detection. The main idea is to integrate Git secret scanning into a CI/CD pipeline and add a false-positive filtering layer before findings reach developers or block deployments.

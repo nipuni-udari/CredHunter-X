@@ -1,5 +1,14 @@
 # Phase 8 Risk Scoring Engine
 
+> **Note (Phase 14):** This deterministic weighted score is now the **prior** for
+> the LLM Ranker (pipeline stage 2; see `doc/phase-14/llm-pipeline-stages.md`).
+> When the ranker runs, it consumes this score and returns a refined 0–100 score;
+> the resulting `risk_score` then carries `source: "llm"` and a `rationale`, and
+> keeps these deterministic components for transparency plus an `llm_ranking`
+> component recording the adjustment. When the ranker is off or unavailable, this
+> deterministic score is used unchanged (`source: "rules"`). The score bands,
+> actions, and private-key floor below apply to both.
+
 ## Purpose
 
 Phase 8 replaces the earlier simple risk mapping with a weighted scoring engine.
@@ -160,6 +169,8 @@ Every finding decision now includes:
     "score": 72,
     "risk_level": "high",
     "recommended_action": "manual_review",
+    "source": "rules",
+    "rationale": null,
     "components": [
       {
         "name": "detector_score",
@@ -170,6 +181,10 @@ Every finding decision now includes:
   }
 }
 ```
+
+When the LLM Ranker runs, `source` becomes `"llm"`, `rationale` carries the
+model's one-line justification, and an `llm_ranking` component records the score
+delta.
 
 The CI summary now includes:
 

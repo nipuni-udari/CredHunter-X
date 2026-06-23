@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -9,6 +8,7 @@ from app.ci.config import CredHunterConfig
 from app.core.env import load_local_env
 from app.scanner.models import NormalizedFinding
 from app.services.false_positive_filter import assess_false_positive
+from app.services.llm_client import openai_json_call
 
 LLM_LABELS = {
     "true_positive",
@@ -211,19 +211,12 @@ def _openai_json_call(
     payload: dict[str, Any],
     max_output_tokens: int,
 ) -> dict[str, Any]:
-    from openai import OpenAI
-
-    load_local_env()
-    model = os.getenv("CREDHUNTER_OPENAI_MODEL", config.llm.model)
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    response = client.responses.create(
-        model=model,
+    return openai_json_call(
+        config=config,
         instructions=instructions,
-        input=json.dumps(payload, sort_keys=True),
+        payload=payload,
         max_output_tokens=max_output_tokens,
-        store=False,
     )
-    return json.loads(response.output_text)
 
 
 _LABEL_RULES = (

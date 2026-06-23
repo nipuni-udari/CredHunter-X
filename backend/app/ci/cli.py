@@ -5,7 +5,10 @@ import os
 import sys
 
 from app.scanner.gitleaks_parser import parse_gitleaks_report
+from app.services.llm_explainer_service import LLMExplainerService
 from app.services.llm_filter_service import LLMFilterService
+from app.services.llm_ranker_service import LLMRankerService
+from app.services.llm_remediation_service import LLMRemediationService
 
 from .backend_client import BackendSubmissionError, submit_scan_to_backend
 from .config import load_config
@@ -35,6 +38,21 @@ def main(argv: list[str] | None = None) -> int:
         choices=["single", "agentic"],
         help="LLM workflow when LLM is enabled (default: configured value).",
     )
+    parser.add_argument(
+        "--llm-rank",
+        action="store_true",
+        help="Run the LLM Ranker to refine risk scores (requires --enable-llm).",
+    )
+    parser.add_argument(
+        "--llm-explain",
+        action="store_true",
+        help="Run the LLM Explainer for developer-facing rationales (requires --enable-llm).",
+    )
+    parser.add_argument(
+        "--llm-remediate",
+        action="store_true",
+        help="Run the LLM Remediation stage for tailored fix steps (requires --enable-llm).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -46,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
             config.llm.enabled = True
         if args.llm_workflow:
             config.llm.workflow = args.llm_workflow
+        if args.llm_rank:
+            config.llm.rank = True
+        if args.llm_explain:
+            config.llm.explain = True
+        if args.llm_remediate:
+            config.llm.remediate = True
 
         if os.path.exists(args.gitleaks_report):
             findings = parse_gitleaks_report(args.gitleaks_report)
@@ -56,14 +80,38 @@ def main(argv: list[str] | None = None) -> int:
             )
             findings = []
 
-        # The LLM step is optional and self-contained: it calls OpenAI directly,
-        # so no CredHunter backend needs to be hosted. When disabled, or when no
-        # API key is present, it is skipped and the deterministic rules decide.
+        # The LLM pipeline is optional and self-contained: each stage calls OpenAI
+        # directly, so no CredHunter backend needs to be hosted. When disabled, or
+        # when no API key is present, stages are skipped and the deterministic
+        # rules / templates decide. Stages run in order classify -> rank ->
+        # explain -> remediate, each consuming the previous stage's output.
         llm_classifications = None
+        llm_rankings = None
+        llm_explanations = None
+        llm_remediations = None
         if config.llm.enabled and findings:
             llm_classifications = LLMFilterService(config).classify_findings(findings, config)
+            if config.llm.rank:
+                llm_rankings = LLMRankerService(config).rank_findings(
+                    findings, llm_classifications, config
+                )
+            if config.llm.explain:
+                llm_explanations = LLMExplainerService(config).explain_findings(
+                    findings, llm_classifications, llm_rankings, config
+                )
+            if config.llm.remediate:
+                llm_remediations = LLMRemediationService(config).remediate_findings(
+                    findings, llm_classifications, llm_rankings, config
+                )
 
-        decision = evaluate_findings(findings, config, llm_classifications)
+        decision = evaluate_findings(
+            findings,
+            config,
+            llm_classifications,
+            llm_rankings=llm_rankings,
+            llm_explanations=llm_explanations,
+            llm_remediations=llm_remediations,
+        )
         backend_scan = None
 
         if config.backend.url:
