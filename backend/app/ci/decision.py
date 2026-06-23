@@ -77,6 +77,7 @@ class CIDecision:
     manual_review_count: int
     ignored_count: int
     findings: list[FindingDecision]
+    llm_status: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -87,6 +88,7 @@ class CIDecision:
             "warning_count": self.warning_count,
             "manual_review_count": self.manual_review_count,
             "ignored_count": self.ignored_count,
+            "llm_status": self.llm_status,
             "findings": [finding.to_dict() for finding in self.findings],
         }
 
@@ -144,7 +146,61 @@ def evaluate_findings(
         manual_review_count=len(manual_reviews),
         ignored_count=len(ignored),
         findings=decisions,
+        llm_status=_llm_status(
+            config, llm_classifications, llm_rankings, llm_explanations, llm_remediations
+        ),
     )
+
+
+def _llm_status(
+    config: CredHunterConfig,
+    classifications: dict[str, LLMClassification],
+    rankings: dict[str, LLMRanking],
+    explanations: dict[str, LLMExplanation],
+    remediations: dict[str, LLMRemediation],
+) -> dict:
+    """Summarise whether each LLM stage actually ran or fell back to deterministic.
+
+    Surfaced in the report/PR comment so a developer can see at a glance whether a
+    decision came from the LLM (the main path) or the deterministic fallback (e.g.
+    no OPENAI_API_KEY, or an API error)."""
+
+    def stage_state(stage_enabled: bool, results: dict) -> str:
+        if not stage_enabled:
+            return "off"
+        return "active" if any(getattr(r, "used", False) for r in results.values()) else "fallback"
+
+    stages = {
+        "classify": stage_state(config.llm.enabled, classifications),
+        "rank": stage_state(config.llm.enabled and config.llm.rank, rankings),
+        "explain": stage_state(config.llm.enabled and config.llm.explain, explanations),
+        "remediate": stage_state(config.llm.enabled and config.llm.remediate, remediations),
+    }
+    active = any(state == "active" for state in stages.values())
+
+    if not config.llm.enabled:
+        mode, reason = "deterministic", "LLM disabled in configuration."
+    elif active:
+        mode, reason = "llm", None
+    else:
+        mode = "fallback"
+        reason = _first_skip_reason(classifications) or "LLM stages did not run."
+
+    return {
+        "mode": mode,
+        "active": active,
+        "enabled": config.llm.enabled,
+        "model": config.llm.model,
+        "stages": stages,
+        "reason": reason,
+    }
+
+
+def _first_skip_reason(classifications: dict[str, LLMClassification]) -> str | None:
+    for classification in classifications.values():
+        if not classification.used and classification.skipped_reason:
+            return classification.skipped_reason
+    return None
 
 
 def _evaluate_finding(
