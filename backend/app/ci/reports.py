@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.reporting.markdown import build_pr_comment, redacted_cell
+from app.reporting.markdown import build_pr_comment, llm_engine_banner, redacted_cell
 
 from .decision import CIDecision
 
@@ -40,6 +40,7 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
     lines = [
         "# CredHunter-X Scan Summary",
         "",
+        f"- {llm_engine_banner(decision)}",
         f"- Final action: `{decision.action}`",
         f"- Total findings: `{decision.finding_count}`",
         f"- Blocking findings: `{decision.blocking_count}`",

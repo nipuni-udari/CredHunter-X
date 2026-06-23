@@ -138,8 +138,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def _print_console_summary(decision, backend_scan=None) -> None:
     scan_text = f", backend_scan_id={backend_scan['scan_id']}" if backend_scan else ""
+    status = decision.llm_status or {}
+    engine = status.get("mode", "deterministic")
+    if engine == "fallback":
+        engine = f"fallback ({status.get('reason', 'unknown')})"
     sys.stdout.write(
         "CredHunter-X: "
+        f"engine={engine}, "
         f"action={decision.action}, "
         f"findings={decision.finding_count}, "
         f"blocking={decision.blocking_count}, "

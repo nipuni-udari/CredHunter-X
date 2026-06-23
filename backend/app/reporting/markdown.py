@@ -17,10 +17,26 @@ def redacted_cell(finding: NormalizedFinding) -> str:
     return f"`{value}`"
 
 
+def llm_engine_banner(decision: CIDecision) -> str:
+    """One-line human summary of whether the LLM ran or the pipeline fell back."""
+
+    status = decision.llm_status or {}
+    mode = status.get("mode", "deterministic")
+    if mode == "llm":
+        active = [name for name, state in status.get("stages", {}).items() if state == "active"]
+        stages = ", ".join(active) if active else "classify"
+        return f"Engine: 🤖 LLM-assisted — model `{status.get('model', 'n/a')}`, stages: {stages}."
+    if mode == "fallback":
+        return f"Engine: ⚠️ Deterministic fallback — LLM not used ({status.get('reason', 'unknown')})."
+    return "Engine: 🛡️ Deterministic only — LLM disabled in configuration."
+
+
 def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
     visible = [item for item in decision.findings if item.action != "ignore"]
     lines = [
         "## CredHunter-X Report",
+        "",
+        llm_engine_banner(decision),
         "",
         f"Final action: `{decision.action}`",
         "",
