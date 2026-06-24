@@ -41,6 +41,26 @@ PLACEHOLDER_WORDS = {
     "000000",
 }
 
+# Obvious non-production test values. Like placeholders, these should never reach
+# the paid LLM stage; they are cheap, explainable local rejections.
+TEST_VALUE_WORDS = {
+    "test123",
+    "fake-key",
+    "fake_key",
+    "fakekey",
+    "fake-token",
+    "fake_token",
+    "faketoken",
+    "sample-token",
+    "sample_token",
+    "sampletoken",
+    "sample-key",
+    "sample_key",
+    "notarealsecret",
+    "not_a_real_secret",
+    "deadbeef",
+}
+
 # Findings that must never be downgraded by deterministic rules.
 NON_DOWNGRADABLE_TYPES = {"private_key"}
 
@@ -85,9 +105,22 @@ def assess_false_positive(finding: NormalizedFinding, config: CredHunterConfig) 
     if signals["configured_ignored_path"]:
         return _ignore("false_positive", "File path matched configured ignore paths.", signals)
 
-    # 2. Literal placeholder / dummy value (applies to every type).
+    # 1b. The value is read from the environment / a secret manager, not
+    #     hard-coded (e.g. os.getenv("API_KEY")). This is the recommended safe
+    #     pattern, so it is a false positive and must skip the paid LLM stage.
+    if signals["env_reference"]:
+        return _ignore("false_positive", "Value is read from the environment or a secret manager, not hard-coded.", signals)
+
+    # 2. Literal placeholder / dummy / test value (applies to every type).
     if config.filters.allow_placeholders and signals["placeholder_value"]:
         return _ignore("false_positive", "Finding contains placeholder or dummy-value indicators.", signals)
+    if config.filters.allow_placeholders and signals["test_value"]:
+        return _ignore("false_positive", "Finding value is an obvious test/fake credential.", signals)
+
+    # 2b. The value is already redacted (only stars or X characters); there is no
+    #     real secret left to leak.
+    if signals["redacted_only_value"]:
+        return _ignore("likely_false_positive", "Finding value is already redacted (only mask characters).", signals)
 
     # 3. Local-only database URL.
     if signals["local_only_database_url"]:
@@ -160,7 +193,10 @@ def _signals(finding: NormalizedFinding, config: CredHunterConfig) -> dict[str, 
         "doc_or_test_path": _is_doc_or_test_path(finding.file_path),
         "in_comment": bool(indicators.get("in_comment") or context_signals.get("is_comment")),
         "in_example_file": bool(indicators.get("in_example_file") or context_signals.get("is_example_file")),
+        "env_reference": bool(context_signals.get("env_reference")),
         "placeholder_value": bool(indicators.get("placeholder")) or _contains_placeholder(text),
+        "test_value": bool(indicators.get("test_value")) or _contains_test_value(text),
+        "redacted_only_value": _is_redacted_only(finding.redacted_secret),
         "local_only_database_url": bool(indicators.get("local_only_database_url")),
         "repeated_or_low_value": bool(indicators.get("repeated_or_low_value")) or _contains_repeated_dummy(text),
         "uuid_like": bool(indicators.get("uuid_like")),
@@ -213,6 +249,21 @@ def _is_doc_or_test_path(file_path: str) -> bool:
 
 def _contains_placeholder(text: str) -> bool:
     return any(word in text for word in PLACEHOLDER_WORDS)
+
+
+def _contains_test_value(text: str) -> bool:
+    return any(word in text for word in TEST_VALUE_WORDS)
+
+
+def _is_redacted_only(redacted_secret: str | None) -> bool:
+    if not redacted_secret:
+        return False
+    stripped = redacted_secret.strip()
+    if not stripped:
+        return False
+    # A value made up entirely of mask characters (****, XXXX, ••••) has no
+    # recoverable secret left in it.
+    return all(char in "*xX•·#" for char in stripped)
 
 
 def _contains_repeated_dummy(text: str) -> bool:

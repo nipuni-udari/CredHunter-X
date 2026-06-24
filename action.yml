@@ -106,9 +106,11 @@ runs:
         python -m app.ci.cli \
           --gitleaks-report "${{ runner.temp }}/gitleaks-report.json" \
           --config "${{ github.workspace }}/${{ inputs.config }}" \
+          --scan-path "${{ github.workspace }}/${{ inputs.scan_path }}" \
           --fail-on "${{ inputs.fail_on }}" \
           --json-output "${{ github.workspace }}/credhunter-report.json" \
           --sarif-output "${{ github.workspace }}/credhunter-report.sarif" \
+          --markdown-output "${{ github.workspace }}/credhunter-report.md" \
           --pr-comment-output "${{ runner.temp }}/credhunter-pr-comment.md" \
           --summary-output "${GITHUB_STEP_SUMMARY}"
 

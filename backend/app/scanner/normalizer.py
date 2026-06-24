@@ -71,6 +71,7 @@ def _secret_indicators(raw: RawFinding) -> dict[str, bool | int | str | None]:
     return {
         "length": len(stripped),
         "placeholder": _has_placeholder(lowered),
+        "test_value": _has_test_value(lowered),
         "local_only_database_url": _is_local_database_url(lowered),
         "repeated_or_low_value": _is_repeated_or_low_value(lowered),
         "uuid_like": bool(_UUID_RE.match(lowered)),
@@ -94,6 +95,27 @@ def _has_placeholder(value: str) -> bool:
         "000000",
     )
     return any(item in value for item in placeholders)
+
+
+def _has_test_value(value: str) -> bool:
+    test_values = (
+        "test123",
+        "fake-key",
+        "fake_key",
+        "fakekey",
+        "fake-token",
+        "fake_token",
+        "faketoken",
+        "sample-token",
+        "sample_token",
+        "sampletoken",
+        "sample-key",
+        "sample_key",
+        "notarealsecret",
+        "not_a_real_secret",
+        "deadbeef",
+    )
+    return any(item in value for item in test_values)
 
 
 def _is_local_database_url(value: str) -> bool:
