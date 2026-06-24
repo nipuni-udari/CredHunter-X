@@ -54,6 +54,7 @@ class ReportingPhase11Tests(unittest.TestCase):
                     "tests/fixtures/credhunter.yml",
                     "--fail-on",
                     "critical",
+                    "--no-python-extractor",
                     "--json-output",
                     str(output_dir / "phase11-report.json"),
                     "--sarif-output",

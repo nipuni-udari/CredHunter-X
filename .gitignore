@@ -13,4 +13,6 @@ backend/.env.*
 backend/tests/fixtures/generated/
 credhunter-report.json
 credhunter-report.sarif
+credhunter-report.md
 gitleaks-report.json
+.credhunter_cache/

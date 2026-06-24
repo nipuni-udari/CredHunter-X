@@ -15,6 +15,7 @@ from typing import Any
 
 from app.ci.config import CredHunterConfig
 from app.core.env import load_local_env
+from app.services import llm_cache
 
 
 def llm_ready(config: CredHunterConfig) -> str | None:
@@ -34,12 +35,24 @@ def openai_json_call(
     payload: dict[str, Any],
     max_output_tokens: int,
 ) -> dict[str, Any]:
-    """Issue one structured-output OpenAI call and parse the JSON response."""
+    """Issue one structured-output OpenAI call and parse the JSON response.
+
+    Responses are cached on disk keyed by (prompt version, model, instructions,
+    payload), so a repeated run over unchanged code reuses the prior result
+    instead of paying for another call. The cache is bypassed transparently when
+    disabled via ``CREDHUNTER_LLM_CACHE=false``.
+    """
 
     from openai import OpenAI
 
     load_local_env()
     model = os.getenv("CREDHUNTER_OPENAI_MODEL", config.llm.model)
+
+    cache_key = llm_cache.make_key(model, instructions, payload)
+    cached = llm_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     response = client.responses.create(
         model=model,
@@ -48,4 +61,6 @@ def openai_json_call(
         max_output_tokens=max_output_tokens,
         store=False,
     )
-    return json.loads(response.output_text)
+    result = json.loads(response.output_text)
+    llm_cache.save(cache_key, result)
+    return result

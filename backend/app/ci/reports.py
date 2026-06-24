@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.reporting.markdown import build_pr_comment, llm_engine_banner, redacted_cell
+from app.reporting.markdown import (
+    build_markdown_summary,
+    build_pr_comment,
+    llm_engine_banner,
+    redacted_cell,
+)
 
 from .decision import CIDecision
 
@@ -72,6 +77,14 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_markdown_summary(decision: CIDecision, path: str | Path) -> None:
+    """Write the developer-friendly Markdown report (remediation cards)."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(build_markdown_summary(decision), encoding="utf-8")
 
 
 def write_pr_comment(decision: CIDecision, path: str | Path) -> None:
