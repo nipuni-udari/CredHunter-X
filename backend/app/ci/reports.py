@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.reporting.html_report import build_html_report
 from app.reporting.markdown import (
     build_markdown_summary,
     build_pr_comment,
@@ -85,6 +86,14 @@ def write_markdown_summary(decision: CIDecision, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(build_markdown_summary(decision), encoding="utf-8")
+
+
+def write_html_report(decision: CIDecision, path: str | Path) -> None:
+    """Write the self-contained HTML developer report (one file, no assets)."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(build_html_report(decision), encoding="utf-8")
 
 
 def write_pr_comment(decision: CIDecision, path: str | Path) -> None:

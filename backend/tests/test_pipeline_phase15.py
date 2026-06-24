@@ -15,6 +15,7 @@ from app.ci.cli import _cost_aware_targets
 from app.ci.config import CredHunterConfig
 from app.ci.decision import FindingDecision
 from app.reporting.markdown import build_markdown_summary
+from app.reporting.html_report import build_html_report
 from app.ci.decision import CIDecision
 from app.scanner.candidate_merger import merge_and_dedupe
 from app.scanner.models import NormalizedFinding, RawFinding
@@ -290,6 +291,81 @@ class MarkdownSummaryTests(unittest.TestCase):
             warning_count=0, manual_review_count=0, ignored_count=0, findings=[],
         )
         self.assertIn("No reportable findings", build_markdown_summary(decision))
+
+
+class HtmlReportTests(unittest.TestCase):
+    def _decision(self, **finding_overrides) -> CIDecision:
+        finding = _finding(
+            secret_type=finding_overrides.pop("secret_type", "github_token"),
+            file_path=finding_overrides.pop("file_path", "src/config.py"),
+            line_number=finding_overrides.pop("line_number", 12),
+            raw_secret=finding_overrides.pop("raw_secret", "ghp_abcdefghijklmnopqrstuvwx"),
+            **finding_overrides,
+        )
+        item = FindingDecision(
+            finding=finding,
+            risk_level="high",
+            action="manual_review",
+            reason="A GitHub token appears hardcoded in source.",
+            llm_classification=LLMClassification("likely_true_positive", 0.91, "", "warn", "m", True),
+        )
+        return CIDecision(
+            action="manual_review", exit_code=0, finding_count=1, blocking_count=0,
+            warning_count=0, manual_review_count=1, ignored_count=0, findings=[item],
+        )
+
+    def test_is_self_contained_html_with_card(self):
+        report = build_html_report(self._decision())
+        self.assertTrue(report.lstrip().lower().startswith("<!doctype html>"))
+        self.assertIn("<style>", report)  # inlined CSS, no external assets
+        self.assertNotIn("http://", report)
+        self.assertNotIn("https://", report)
+        self.assertIn("CredHunter-X Report", report)
+        self.assertIn("Safe code pattern", report)
+        self.assertIn("os.getenv", report)
+
+    def test_never_exposes_raw_secret(self):
+        report = build_html_report(self._decision())
+        self.assertNotIn("ghp_abcdefghijklmnopqrstuvwx", report)
+
+    def test_escapes_finding_text(self):
+        # A file path containing markup must not inject into the page.
+        report = build_html_report(self._decision(file_path="src/<script>x</script>.py"))
+        self.assertNotIn("<script>x</script>", report)
+        self.assertIn("&lt;script&gt;", report)
+
+    def test_empty_decision_reports_no_findings(self):
+        decision = CIDecision(
+            action="pass", exit_code=0, finding_count=0, blocking_count=0,
+            warning_count=0, manual_review_count=0, ignored_count=0, findings=[],
+        )
+        report = build_html_report(decision)
+        self.assertIn("No reportable findings", report)
+
+
+class HtmlReportContextTests(unittest.TestCase):
+    def test_renders_masked_context_not_raw_neighbour(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "config.py"
+            target.write_text(
+                'PREV = "anotherlongsecretvalue12345"\n'
+                'API_KEY = "sk_live_abcdefghijklmnopqrstuv"\n'
+                "client.use(API_KEY)\n",
+                encoding="utf-8",
+            )
+            finding = _finding(file_path="config.py", line_number=2, raw_secret="sk_live_abcdefghijklmnopqrstuv")
+            enrich_with_source_context([finding], tmp, before=1, after=1)
+            item = FindingDecision(
+                finding=finding, risk_level="high", action="manual_review",
+                reason="Hardcoded secret.",
+            )
+            decision = CIDecision(
+                action="manual_review", exit_code=0, finding_count=1, blocking_count=0,
+                warning_count=0, manual_review_count=1, ignored_count=0, findings=[item],
+            )
+            report = build_html_report(decision)
+            self.assertNotIn("anotherlongsecretvalue12345", report)
+            self.assertNotIn("sk_live_abcdefghijklmnopqrstuv", report)
 
 
 if __name__ == "__main__":

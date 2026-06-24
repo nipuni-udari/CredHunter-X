@@ -20,6 +20,7 @@ from .config import CredHunterConfig, load_config
 from .decision import evaluate_findings
 from .reports import (
     write_github_summary,
+    write_html_report,
     write_json_report,
     write_markdown_summary,
     write_pr_comment,
@@ -46,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sarif-output", default="credhunter-report.sarif", help="Output SARIF report path.")
     parser.add_argument("--summary-output", help="Output Markdown summary path. Defaults to GITHUB_STEP_SUMMARY.")
     parser.add_argument("--markdown-output", help="Optional developer-friendly Markdown report (remediation cards).")
+    parser.add_argument("--html-output", help="Optional self-contained HTML developer report (remediation cards; print-to-PDF).")
     parser.add_argument("--pr-comment-output", help="Optional PR comment Markdown output path.")
     parser.add_argument("--fail-on", help="Override configured fail_on threshold.")
     parser.add_argument(
@@ -162,6 +164,8 @@ def main(argv: list[str] | None = None) -> int:
             write_github_summary(decision, summary_path)
         if args.markdown_output:
             write_markdown_summary(decision, args.markdown_output)
+        if args.html_output:
+            write_html_report(decision, args.html_output)
         if args.pr_comment_output:
             write_pr_comment(decision, args.pr_comment_output)
 
