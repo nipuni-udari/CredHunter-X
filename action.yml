@@ -111,6 +111,7 @@ runs:
           --json-output "${{ github.workspace }}/credhunter-report.json" \
           --sarif-output "${{ github.workspace }}/credhunter-report.sarif" \
           --markdown-output "${{ github.workspace }}/credhunter-report.md" \
+          --html-output "${{ github.workspace }}/credhunter-report.html" \
           --pr-comment-output "${{ runner.temp }}/credhunter-pr-comment.md" \
           --summary-output "${GITHUB_STEP_SUMMARY}"
 
