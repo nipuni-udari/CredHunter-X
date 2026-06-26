@@ -90,8 +90,9 @@ def score_finding(
     score = _clamp(raw_score)
 
     applied_floor = None
+    provider_floor = provider_floor_for_finding(finding)
     if not _risk_floor_exempt(finding, false_positive_assessment, llm_classification, config):
-        score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
+        score, applied_floor = apply_score_floor(score, provider_floor)
         if applied_floor:
             components.append(
                 RiskComponent(
@@ -100,6 +101,7 @@ def score_finding(
                     f"Provider-specific floor applied: {applied_floor.provider}:{applied_floor.minimum_score}.",
                 )
             )
+    score = _cap_plain_generic_secret_score(finding, components, score, provider_floor, validation_result)
     if _needs_conservative_medium_floor(finding, false_positive_assessment, llm_classification, config):
         score = max(score, 35)
 
@@ -230,6 +232,34 @@ def _needs_conservative_medium_floor(
     ):
         return False
     return True
+
+
+def _cap_plain_generic_secret_score(
+    finding: NormalizedFinding,
+    components: list[RiskComponent],
+    score: int,
+    provider_floor,
+    validation_result: ValidationResult | None,
+) -> int:
+    if provider_floor is not None:
+        return score
+    if finding.secret_type != "generic_secret":
+        return score
+    if validation_result and validation_result.checked and validation_result.active is True:
+        return score
+    non_llm_score = _clamp(sum(component.value for component in components if component.name != "llm_weight"))
+    if risk_level_from_score(non_llm_score) not in {"low", "medium"}:
+        return score
+    if score <= 59:
+        return score
+    components.append(
+        RiskComponent(
+            "generic_secret_cap",
+            59 - score,
+            "Plain generic secret without provider evidence capped to the medium band.",
+        )
+    )
+    return 59
 
 
 def risk_level_from_score(score: int) -> str:

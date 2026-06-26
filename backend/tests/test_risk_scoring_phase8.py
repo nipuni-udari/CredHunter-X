@@ -112,6 +112,34 @@ class RiskScoringPhase8Tests(unittest.TestCase):
         self.assertEqual(decision.findings[0].action, "ignore")
         self.assertEqual(decision.findings[0].risk_score.risk_level, "low")
 
+    def test_llm_true_positive_does_not_push_plain_generic_secret_above_medium(self):
+        finding = normalize_finding(
+            RawFinding(
+                detector="gitleaks.generic",
+                secret_type="generic_secret",
+                file_path="src/settings.py",
+                raw_secret="django-insecure-k8j2x9p0m5n1q4r7s3t6v8w2y5z0",
+                confidence=1.0,
+                source="test",
+            )
+        )
+        config = CredHunterConfig()
+        llm = LLMClassification(
+            classification="true_positive",
+            confidence=0.95,
+            reason="Hardcoded generic application secret.",
+            recommended_action="fail",
+            model="o4-mini",
+            used=True,
+        )
+
+        risk = score_finding(finding, config, assess_false_positive(finding, config), llm)
+
+        self.assertEqual(risk.score, 59)
+        self.assertEqual(risk.risk_level, "medium")
+        self.assertEqual(risk.recommended_action, "warn")
+        self.assertIn("generic_secret_cap", [component.name for component in risk.components])
+
 
 def _github_source_finding():
     return normalize_finding(
