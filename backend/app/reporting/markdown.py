@@ -18,21 +18,42 @@ def redacted_cell(finding: NormalizedFinding) -> str:
 
 
 def llm_engine_banner(decision: CIDecision) -> str:
-    """One-line human summary of whether the LLM ran or the pipeline fell back."""
+    """One-line human summary of enabled and active LLM stages."""
 
     status = decision.llm_status or {}
     mode = status.get("mode", "deterministic")
-    if mode == "llm":
-        active = [name for name, state in status.get("stages", {}).items() if state == "active"]
-        stages = ", ".join(active) if active else "classify"
-        return f"Engine: 🤖 LLM-assisted — model `{status.get('model', 'n/a')}`, stages: {stages}."
-    if mode == "fallback":
-        return f"Engine: ⚠️ Deterministic fallback — LLM not used ({status.get('reason', 'unknown')})."
-    return "Engine: 🛡️ Deterministic only — LLM disabled in configuration."
+    stages = status.get("stages", {})
+    enabled = _enabled_stages(stages)
+    used = _used_stages(stages)
+    model = status.get("model", "n/a")
+
+    if mode in {"llm", "fallback"} or status.get("enabled"):
+        parts = [
+            "Engine: LLM-assisted",
+            f"Model: `{model}`",
+            f"LLM stages enabled: {', '.join(enabled) if enabled else 'none'}",
+            f"LLM stages used: {', '.join(used) if used else 'none'}",
+        ]
+        if mode == "fallback":
+            parts.append(f"Fallback: {status.get('reason', 'unknown')}")
+        return " | ".join(parts) + "."
+    return "Engine: deterministic only | LLM disabled in configuration."
+
+
+def is_reportable_finding(item: FindingDecision) -> bool:
+    """Return False for ignored or false-positive findings hidden from main tables."""
+
+    if item.action == "ignore":
+        return False
+    if item.false_positive_assessment and item.false_positive_assessment.classification == "false_positive":
+        return False
+    if item.llm_classification and item.llm_classification.classification == "false_positive":
+        return False
+    return True
 
 
 def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
-    visible = [item for item in decision.findings if item.action != "ignore"]
+    visible = [item for item in decision.findings if is_reportable_finding(item)]
     lines = [
         "## CredHunter-X Report",
         "",
@@ -139,7 +160,7 @@ def build_markdown_summary(decision: CIDecision) -> str:
         "",
     ]
 
-    visible = [item for item in decision.findings if item.action != "ignore"]
+    visible = [item for item in decision.findings if is_reportable_finding(item)]
     visible.sort(key=lambda item: item.risk_score.score if item.risk_score else 0, reverse=True)
 
     if not visible:
@@ -170,6 +191,7 @@ def _remediation_card(item: FindingDecision) -> list[str]:
         f"- **Action:** `{item.action}`",
         f"- **Classification:** {classification}",
         f"- **Confidence:** {confidence}",
+        f"- **LLM stages:** {_stage_status_summary(item)}",
         f"- **Secret (masked):** {redacted_cell(finding)}",
         "",
         "**Why this matters:**",
@@ -203,6 +225,43 @@ def _classification_label(item: FindingDecision) -> tuple[str, str]:
     if item.false_positive_assessment:
         return (item.false_positive_assessment.classification, "n/a (rule-based)")
     return ("uncertain", "n/a")
+
+
+def _enabled_stages(stages: dict) -> list[str]:
+    return [name for name in ("classify", "rank", "explain", "remediate") if stages.get(name) != "off"]
+
+
+def _used_stages(stages: dict) -> list[str]:
+    return [name for name in ("classify", "rank", "explain", "remediate") if stages.get(name) == "active"]
+
+
+def _stage_status_summary(item: FindingDecision) -> str:
+    labels = [
+        f"llm_filter.used={_used(item.llm_classification)}",
+        f"llm_ranker.used={_used(item.llm_ranking)}",
+        f"llm_explanation.used={_used(item.llm_explanation)}",
+        f"llm_remediation.used={_used(item.llm_remediation)}",
+        f"Classification: {_classification_source(item)}",
+        f"Explanation: {_explanation_source(item)}",
+        f"Remediation: {_remediation_source(item)}",
+    ]
+    return "; ".join(labels)
+
+
+def _used(stage) -> str:
+    return "true" if stage and stage.used else "false"
+
+
+def _classification_source(item: FindingDecision) -> str:
+    return "LLM" if item.llm_classification and item.llm_classification.used else "rule-based fallback"
+
+
+def _explanation_source(item: FindingDecision) -> str:
+    return "LLM" if item.llm_explanation and item.llm_explanation.used else "fallback template"
+
+
+def _remediation_source(item: FindingDecision) -> str:
+    return "LLM" if item.llm_remediation and item.llm_remediation.used else "fallback template"
 
 
 def build_feedback_summary(findings: list[dict]) -> dict:

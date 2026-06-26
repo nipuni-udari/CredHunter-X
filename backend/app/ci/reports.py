@@ -7,6 +7,7 @@ from app.reporting.html_report import build_html_report
 from app.reporting.markdown import (
     build_markdown_summary,
     build_pr_comment,
+    is_reportable_finding,
     llm_engine_banner,
     redacted_cell,
 )
@@ -33,7 +34,7 @@ def write_sarif_report(decision: CIDecision, path: str | Path) -> None:
                         "rules": _sarif_rules(decision),
                     }
                 },
-                "results": [_sarif_result(item) for item in decision.findings if item.action != "ignore"],
+                "results": [_sarif_result(item) for item in decision.findings if is_reportable_finding(item)],
             }
         ],
     }
@@ -56,7 +57,7 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
         "",
     ]
 
-    visible = [item for item in decision.findings if item.action != "ignore"]
+    visible = [item for item in decision.findings if is_reportable_finding(item)]
     if visible:
         lines.extend(
             [
@@ -105,6 +106,8 @@ def write_pr_comment(decision: CIDecision, path: str | Path) -> None:
 def _sarif_rules(decision: CIDecision) -> list[dict]:
     rules = {}
     for item in decision.findings:
+        if not is_reportable_finding(item):
+            continue
         rule_id = item.finding.rule_id or item.finding.detector
         rules[rule_id] = {
             "id": rule_id,

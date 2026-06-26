@@ -14,7 +14,7 @@ from unittest import mock
 from app.ci.cli import _cost_aware_targets
 from app.ci.config import CredHunterConfig
 from app.ci.decision import FindingDecision
-from app.reporting.markdown import build_markdown_summary
+from app.reporting.markdown import build_markdown_summary, build_pr_comment
 from app.reporting.html_report import build_html_report
 from app.ci.decision import CIDecision
 from app.scanner.candidate_merger import merge_and_dedupe
@@ -24,7 +24,11 @@ from app.scanner.python_candidate_extractor import extract_python_candidates
 from app.scanner.source_context import enrich_with_source_context, mask_line
 from app.services import llm_cache
 from app.services.false_positive_filter import assess_false_positive
+from app.services.llm_client import parse_json_response
+from app.services.llm_explainer_service import LLMExplanation
 from app.services.llm_filter_service import LLMClassification
+from app.services.llm_ranker_service import LLMRanking
+from app.services.llm_remediation_service import LLMRemediation
 
 
 def _finding(**overrides) -> NormalizedFinding:
@@ -144,17 +148,36 @@ class PythonExtractorTests(unittest.TestCase):
 class CandidateMergerTests(unittest.TestCase):
     def test_dedupes_same_location_and_prefers_gitleaks(self):
         gitleaks = _finding(
-            file_path="src/config.py", line_number=12, raw_secret="ghp_aaaaaaaaaaaaaaaaaaaa", source="gitleaks_json"
+            file_path="src/config.py",
+            line_number=12,
+            raw_secret="ghp_aaaaaaaaaaaaaaaaaaaa",
+            secret_type="github_token",
+            source="gitleaks_json",
+            detector="gitleaks",
+            rule_id="github-token",
         )
         python = _finding(
-            file_path="src/config.py", line_number=12, raw_secret="ghp_aaaaaaaaaaaaaaaaaaaa", source="python_extractor", detector="python.ast"
+            file_path="src/config.py",
+            line_number=12,
+            raw_secret="ghp_aaaaaaaaaaaaaaaaaaaa",
+            secret_type="generic_secret",
+            source="python_extractor",
+            detector="python.ast",
+            rule_id="python-generic-secret",
+            confidence=0.9,
         )
-        # Same secret + line -> same secret_type/redacted -> one merged finding.
-        python.secret_type = gitleaks.secret_type
         merged = merge_and_dedupe([gitleaks], [python])
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0].source, "gitleaks_json")
-        self.assertIn("python.ast", merged[0].metadata.get("also_detected_by", []))
+        self.assertEqual(merged[0].confidence, 0.9)
+        self.assertIn("gitleaks", merged[0].metadata.get("detected_by", []))
+        self.assertIn("python.ast", merged[0].metadata.get("detected_by", []))
+        self.assertIn("gitleaks_json", merged[0].metadata.get("detected_sources", []))
+        self.assertIn("python_extractor", merged[0].metadata.get("detected_sources", []))
+        self.assertIn("github_token", merged[0].metadata.get("merged_secret_types", []))
+        self.assertIn("generic_secret", merged[0].metadata.get("merged_secret_types", []))
+        self.assertIn("github-token", merged[0].metadata.get("merged_rule_ids", []))
+        self.assertIn("python-generic-secret", merged[0].metadata.get("merged_rule_ids", []))
 
     def test_keeps_distinct_findings(self):
         a = _finding(file_path="a.py", line_number=1, raw_secret="aaaaaaaaaaaaaaaaaaaa")
@@ -217,6 +240,20 @@ class LLMCacheIntegrationTests(unittest.TestCase):
         self.assertEqual(calls["count"], 1)  # second call served from cache.
 
 
+class LLMJsonParsingTests(unittest.TestCase):
+    def test_parses_plain_json(self):
+        parsed = parse_json_response('{"classification": "true_positive"}')
+        self.assertEqual(parsed, {"classification": "true_positive"})
+
+    def test_parses_fenced_json(self):
+        parsed = parse_json_response('```json\n{"classification": "false_positive"}\n```')
+        self.assertEqual(parsed["classification"], "false_positive")
+
+    def test_extracts_json_with_surrounding_text(self):
+        parsed = parse_json_response('Here is the result:\n{"score": 82, "rationale": "high risk"}\nDone.')
+        self.assertEqual(parsed["score"], 82)
+
+
 class LocalFilterTests(unittest.TestCase):
     def setUp(self):
         self.config = CredHunterConfig()
@@ -230,6 +267,26 @@ class LocalFilterTests(unittest.TestCase):
 
     def test_test_value_is_ignored(self):
         finding = _finding(raw_secret="fake-key-test123-value")
+        assessment = assess_false_positive(finding, self.config)
+        self.assertTrue(assessment.ignored)
+
+    def test_raw_placeholder_value_is_ignored(self):
+        finding = _finding(secret_type="stripe_api_key", raw_secret="YOUR_API_KEY_HERE")
+        finding.metadata["target_line"] = 'STRIPE_API_KEY = "YOUR_API_KEY_HERE"'
+        assessment = assess_false_positive(finding, self.config)
+        self.assertTrue(assessment.ignored)
+        self.assertEqual(assessment.classification, "false_positive")
+
+    def test_masked_placeholder_value_is_ignored(self):
+        finding = _finding(secret_type="stripe_api_key", raw_secret="YOUR****HERE")
+        finding.metadata["target_line"] = 'STRIPE_API_KEY = "YOUR****HERE"'
+        assessment = assess_false_positive(finding, self.config)
+        self.assertTrue(assessment.ignored)
+        self.assertEqual(assessment.classification, "false_positive")
+
+    def test_short_test_password_is_ignored(self):
+        finding = _finding(secret_type="generic_secret", raw_secret="test123")
+        finding.metadata["target_line"] = 'TEST_PASSWORD = "test123"'
         assessment = assess_false_positive(finding, self.config)
         self.assertTrue(assessment.ignored)
 
@@ -291,6 +348,60 @@ class MarkdownSummaryTests(unittest.TestCase):
             warning_count=0, manual_review_count=0, ignored_count=0, findings=[],
         )
         self.assertIn("No reportable findings", build_markdown_summary(decision))
+
+    def test_report_shows_enabled_and_used_llm_stages(self):
+        finding = _finding(secret_type="github_token", file_path="src/config.py", line_number=12)
+        item = FindingDecision(
+            finding=finding,
+            risk_level="high",
+            action="manual_review",
+            reason="Hardcoded token.",
+            llm_classification=LLMClassification("likely_true_positive", 0.91, "real token", "warn", "o4-mini", True),
+            llm_ranking=LLMRanking(72, "high", "manual_review", "urgent", "o4-mini", True),
+            llm_explanation=LLMExplanation("This token is hardcoded in source.", "o4-mini", True),
+            llm_remediation=LLMRemediation(["Rotate the token.", "Move it to a secret store."], "o4-mini", True),
+        )
+        decision = CIDecision(
+            action="manual_review",
+            exit_code=0,
+            finding_count=1,
+            blocking_count=0,
+            warning_count=0,
+            manual_review_count=1,
+            ignored_count=0,
+            findings=[item],
+            llm_status={
+                "mode": "llm",
+                "enabled": True,
+                "model": "o4-mini",
+                "stages": {"classify": "active", "rank": "active", "explain": "active", "remediate": "active"},
+            },
+        )
+        report = build_markdown_summary(decision)
+        self.assertIn("Engine: LLM-assisted", report)
+        self.assertIn("Model: `o4-mini`", report)
+        self.assertIn("LLM stages enabled: classify, rank, explain, remediate", report)
+        self.assertIn("llm_filter.used=true", report)
+        self.assertIn("llm_ranker.used=true", report)
+        self.assertIn("llm_explanation.used=true", report)
+        self.assertIn("llm_remediation.used=true", report)
+
+    def test_false_positive_classification_is_hidden_from_main_table(self):
+        finding = _finding(secret_type="generic_secret", file_path="src/config.py", line_number=2)
+        item = FindingDecision(
+            finding=finding,
+            risk_level="medium",
+            action="warn",
+            reason="LLM considered this a false positive.",
+            llm_classification=LLMClassification("false_positive", 0.95, "placeholder", "ignore", "o4-mini", True),
+        )
+        decision = CIDecision(
+            action="warn", exit_code=0, finding_count=1, blocking_count=0,
+            warning_count=1, manual_review_count=0, ignored_count=0, findings=[item],
+        )
+        report = build_pr_comment(decision)
+        self.assertIn("No reportable findings", report)
+        self.assertNotIn("|  | medium | warn | generic_secret |", report)
 
 
 class HtmlReportTests(unittest.TestCase):

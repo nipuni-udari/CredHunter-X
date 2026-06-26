@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 from app.ci.config import CredHunterConfig
@@ -61,6 +62,71 @@ def openai_json_call(
         max_output_tokens=max_output_tokens,
         store=False,
     )
-    result = json.loads(response.output_text)
+    result = parse_json_response(response.output_text)
     llm_cache.save(cache_key, result)
     return result
+
+
+def parse_json_response(text: str) -> dict[str, Any]:
+    """Parse an LLM response that should contain one JSON object.
+
+    Models are instructed to return JSON only, but in practice they can wrap it
+    in Markdown fences or add a short sentence before/after it. Keep parsing
+    forgiving here so every LLM stage gets the same repair behavior.
+    """
+
+    attempts = [text, _strip_markdown_fence(text)]
+    for candidate in attempts:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    extracted = _extract_first_json_object(text)
+    if extracted is not None:
+        try:
+            parsed = json.loads(extracted)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError("LLM response did not contain a valid JSON object.")
+
+
+def _strip_markdown_fence(text: str) -> str:
+    stripped = text.strip()
+    match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", stripped, flags=re.IGNORECASE | re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return stripped
+
+
+def _extract_first_json_object(text: str) -> str | None:
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        in_string = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+        start = text.find("{", start + 1)
+    return None

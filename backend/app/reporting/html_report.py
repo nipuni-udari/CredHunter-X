@@ -22,6 +22,8 @@ from app.reporting.markdown import (
     _SAFE_PATTERNS,
     _SECRET_TITLES,
     _classification_label,
+    _stage_status_summary,
+    is_reportable_finding,
     llm_engine_banner,
 )
 
@@ -96,7 +98,7 @@ footer { margin-top: 2rem; color: var(--muted); font-size: .8rem; border-top: 1p
 def build_html_report(decision: CIDecision) -> str:
     """Render the full self-contained HTML developer report as a string."""
 
-    visible = [item for item in decision.findings if item.action != "ignore"]
+    visible = [item for item in decision.findings if is_reportable_finding(item)]
     visible.sort(key=_sort_key)
 
     body = [
@@ -175,6 +177,7 @@ def _card(item: FindingDecision) -> str:
         f"<li><b>Risk score:</b> {escape(str(score))}</li>",
         f"<li><b>Classification:</b> {escape(classification)}</li>",
         f"<li><b>Confidence:</b> {escape(confidence)}</li>",
+        f"<li><b>LLM stages:</b> {escape(_stage_status_summary(item))}</li>",
         f"<li><b>Secret (masked):</b> <code>{escape(masked)}</code></li>",
         "</ul>",
     ]
@@ -220,12 +223,17 @@ def _appendix(decision: CIDecision) -> str:
     status = decision.llm_status or {}
     model = status.get("model") or "n/a"
     mode = status.get("mode", "deterministic")
+    stages = status.get("stages", {})
+    enabled = ", ".join(name for name, state in stages.items() if state != "off") or "none"
+    used = ", ".join(name for name, state in stages.items() if state == "active") or "none"
     return (
         "<h2>Appendix</h2>"
         '<div class="appendix"><ul>'
         "<li>Machine-readable findings: <code>credhunter-report.json</code></li>"
         "<li>Code-scanning upload: <code>credhunter-report.sarif</code></li>"
         f"<li>LLM engine: <code>{escape(str(mode))}</code>, model <code>{escape(str(model))}</code></li>"
+        f"<li>LLM stages enabled: <code>{escape(enabled)}</code></li>"
+        f"<li>LLM stages used: <code>{escape(used)}</code></li>"
         "<li>Limitations: classifications are advisory; always confirm a flagged "
         "secret is live before treating it as exploited, and rotate it regardless.</li>"
         "<li>Safety: every value shown above is masked; the raw secret is never "

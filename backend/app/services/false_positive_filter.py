@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 
@@ -33,13 +34,38 @@ PLACEHOLDER_WORDS = {
     "your_api_key",
     "your-api-key",
     "your_api_key_here",
+    "your_secret_here",
+    "your_password_here",
+    "your_token_here",
+    "your_secret",
+    "your_password",
     "your-token",
     "your_token",
     "replace_me",
     "replace-me",
+    "replaceme",
+    "change_me",
+    "change-me",
+    "insert_key_here",
     "xxxxxxxx",
     "000000",
 }
+
+_PLACEHOLDER_RE = re.compile(
+    r"(?i)(?:"
+    r"\bYOUR[\W_]*(?:API[\W_]*KEY|SECRET|PASSWORD|TOKEN)?[\W_]*(?:HERE|KEY)?\b|"
+    r"<\s*YOUR[\W_]*(?:API[\W_]*KEY|SECRET|PASSWORD|TOKEN)\s*>|"
+    r"\$\{\s*YOUR[\W_]*(?:API[\W_]*KEY|SECRET|PASSWORD|TOKEN)\s*\}|"
+    r"\b(?:REPLACE|CHANGE)[\W_]*ME\b|"
+    r"\bINSERT[\W_]*KEY[\W_]*HERE\b"
+    r")"
+)
+_MASKED_PLACEHOLDER_RE = re.compile(
+    r"(?i)(?:"
+    r"\bYOUR[*xX#.\-_\s]{2,}(?:HERE|KEY|SECRET|PASSWORD|TOKEN)\b|"
+    r"\bX{2,}[*xX#.\-_\s]{2,}X{2,}\b"
+    r")"
+)
 
 # Obvious non-production test values. Like placeholders, these should never reach
 # the paid LLM stage; they are cheap, explainable local rejections.
@@ -194,7 +220,11 @@ def _signals(finding: NormalizedFinding, config: CredHunterConfig) -> dict[str, 
         "in_comment": bool(indicators.get("in_comment") or context_signals.get("is_comment")),
         "in_example_file": bool(indicators.get("in_example_file") or context_signals.get("is_example_file")),
         "env_reference": bool(context_signals.get("env_reference")),
-        "placeholder_value": bool(indicators.get("placeholder")) or _contains_placeholder(text),
+        "placeholder_value": (
+            bool(indicators.get("placeholder"))
+            or _contains_placeholder(text)
+            or _contains_structural_placeholder(_target_text(finding))
+        ),
         "test_value": bool(indicators.get("test_value")) or _contains_test_value(text),
         "redacted_only_value": _is_redacted_only(finding.redacted_secret),
         "local_only_database_url": bool(indicators.get("local_only_database_url")),
@@ -234,6 +264,14 @@ def _safe_text(finding: NormalizedFinding) -> str:
     return " ".join(parts).lower()
 
 
+def _target_text(finding: NormalizedFinding) -> str:
+    parts = [
+        str(finding.metadata.get("target_line") or ""),
+        str(finding.metadata.get("masked_target_line") or ""),
+    ]
+    return " ".join(parts).lower()
+
+
 def _is_ignored_path(file_path: str, ignore_paths: list[str]) -> bool:
     normalized = file_path.replace("\\", "/")
     return any(fnmatch(normalized, pattern.replace("\\", "/")) for pattern in ignore_paths)
@@ -248,7 +286,15 @@ def _is_doc_or_test_path(file_path: str) -> bool:
 
 
 def _contains_placeholder(text: str) -> bool:
+    if _contains_structural_placeholder(text):
+        return True
     return any(word in text for word in PLACEHOLDER_WORDS)
+
+
+def _contains_structural_placeholder(text: str) -> bool:
+    if not text:
+        return False
+    return bool(_PLACEHOLDER_RE.search(text) or _MASKED_PLACEHOLDER_RE.search(text))
 
 
 def _contains_test_value(text: str) -> bool:
