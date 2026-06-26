@@ -102,6 +102,7 @@ def score_finding(
                 )
             )
     score = _cap_plain_generic_secret_score(finding, components, score, provider_floor, validation_result)
+    score = _cap_high_floor_provider_score(finding, components, score, provider_floor, validation_result)
     if _needs_conservative_medium_floor(finding, false_positive_assessment, llm_classification, config):
         score = max(score, 35)
 
@@ -260,6 +261,34 @@ def _cap_plain_generic_secret_score(
         )
     )
     return 59
+
+
+def _cap_high_floor_provider_score(
+    finding: NormalizedFinding,
+    components: list[RiskComponent],
+    score: int,
+    provider_floor,
+    validation_result: ValidationResult | None,
+) -> int:
+    if provider_floor is None:
+        return score
+    if provider_floor.minimum_severity != "high":
+        return score
+    if validation_result and validation_result.checked and validation_result.active is True:
+        return score
+    non_llm_score = _clamp(sum(component.value for component in components if component.name != "llm_weight"))
+    if risk_level_from_score(non_llm_score) == "critical":
+        return score
+    if score <= 79:
+        return score
+    components.append(
+        RiskComponent(
+            "high_floor_provider_cap",
+            79 - score,
+            "High-floor provider token without active validation capped to the high band.",
+        )
+    )
+    return 79
 
 
 def risk_level_from_score(score: int) -> str:

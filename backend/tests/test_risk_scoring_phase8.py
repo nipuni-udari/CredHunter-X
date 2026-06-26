@@ -140,6 +140,34 @@ class RiskScoringPhase8Tests(unittest.TestCase):
         self.assertEqual(risk.recommended_action, "warn")
         self.assertIn("generic_secret_cap", [component.name for component in risk.components])
 
+    def test_llm_true_positive_keeps_bearer_token_in_high_band_without_validation(self):
+        finding = normalize_finding(
+            RawFinding(
+                detector="python.regex",
+                secret_type="bearer_token",
+                file_path="src/api_client.py",
+                raw_secret="appSessionToken2026Alpha",
+                confidence=0.65,
+                source="test",
+            )
+        )
+        config = CredHunterConfig()
+        llm = LLMClassification(
+            classification="true_positive",
+            confidence=0.95,
+            reason="Hardcoded bearer token.",
+            recommended_action="fail",
+            model="o4-mini",
+            used=True,
+        )
+
+        risk = score_finding(finding, config, assess_false_positive(finding, config), llm)
+
+        self.assertEqual(risk.score, 79)
+        self.assertEqual(risk.risk_level, "high")
+        self.assertEqual(risk.recommended_action, "manual_review")
+        self.assertIn("high_floor_provider_cap", [component.name for component in risk.components])
+
 
 def _github_source_finding():
     return normalize_finding(

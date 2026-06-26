@@ -11,6 +11,7 @@ from app.api.dependencies import set_repository
 from app.ci.cli import main as ci_main
 from app.ci.config import CredHunterConfig
 from app.ci.decision import evaluate_findings
+from app.ci.reports import write_github_summary
 from app.repositories.memory_repository import InMemoryRepository
 from app.reporting.markdown import build_feedback_summary, build_pr_comment
 from app.scanner.models import RawFinding
@@ -104,6 +105,27 @@ class ReportingPhase11Tests(unittest.TestCase):
         self.assertEqual(summary["suppressed_count"], 1)
         self.assertEqual(summary["false_positive_count"], 1)
         self.assertEqual(summary["true_positive_count"], 1)
+
+    def test_github_summary_includes_ignored_findings(self):
+        config = CredHunterConfig()
+        finding = normalize_finding(
+            RawFinding(
+                detector="python.ast",
+                secret_type="generic_secret",
+                file_path="src/example.py",
+                raw_secret="YOUR_API_KEY_HERE",
+                confidence=0.6,
+                source="test",
+            )
+        )
+        decision = evaluate_findings([finding], config)
+        output_path = Path("tests/fixtures/generated/phase11-summary.md")
+
+        write_github_summary(decision, output_path)
+
+        summary = output_path.read_text(encoding="utf-8")
+        self.assertIn("Ignored findings: `1`", summary)
+        self.assertIn("| 0 | low | ignore | generic_secret |", summary)
 
 
 def _github_finding():

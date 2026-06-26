@@ -57,7 +57,7 @@ def write_github_summary(decision: CIDecision, path: str | Path) -> None:
         "",
     ]
 
-    visible = [item for item in decision.findings if is_reportable_finding(item)]
+    visible = decision.findings
     if visible:
         lines.extend(
             [

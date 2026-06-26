@@ -52,7 +52,7 @@ class LLMRankerTests(unittest.TestCase):
 
     def test_ranker_score_overrides_decision(self):
         config = _pipeline_config()
-        finding = _finding()
+        finding = _finding(secret_type="stripe_api_key")
 
         def fake_ranker(payload, active_config):
             return {"score": 85, "rationale": "Live-looking token in a settings module."}
@@ -124,6 +124,25 @@ class LLMRankerTests(unittest.TestCase):
         self.assertEqual(critical.recommended_action, "fail")
         self.assertEqual(critical.metadata["model_severity"], "high")
         self.assertEqual(critical.metadata["severity_normalized"], "critical")
+
+    def test_ranker_keeps_high_floor_provider_token_in_high_band(self):
+        config = _pipeline_config()
+        finding = _finding(secret_type="bearer_token", file_path="src/api_client.py")
+
+        def fake_ranker(payload, active_config):
+            return {
+                "risk_score": 90,
+                "severity": "critical",
+                "reason": "Hardcoded bearer token.",
+            }
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            ranking = LLMRankerService(config, ranker=fake_ranker).rank_finding(finding, None, config)
+
+        self.assertEqual(ranking.score, 79)
+        self.assertEqual(ranking.risk_level, "high")
+        self.assertEqual(ranking.recommended_action, "manual_review")
+        self.assertEqual(ranking.metadata["high_floor_cap"]["original_score"], 90)
 
     def test_ranker_cannot_lower_private_key_below_floor(self):
         config = _pipeline_config()

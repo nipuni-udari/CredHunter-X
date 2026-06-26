@@ -190,6 +190,7 @@ def _validated_ranking(
     if not _classification_suppresses_floor(finding, classification, config):
         score, applied_floor = apply_score_floor(score, provider_floor)
     score, score_cap = _apply_generic_secret_cap(finding, base_score, score, provider_floor)
+    score, high_floor_cap = _apply_high_floor_provider_cap(base_score, score, provider_floor)
 
     metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
     model_severity = str(result.get("severity", "")).lower()
@@ -205,6 +206,9 @@ def _validated_ranking(
     if score_cap:
         metadata = dict(metadata)
         metadata["score_cap"] = score_cap
+    if high_floor_cap:
+        metadata = dict(metadata)
+        metadata["high_floor_cap"] = high_floor_cap
     return LLMRanking(
         score=score,
         risk_level=risk_level,
@@ -235,6 +239,28 @@ def _apply_generic_secret_cap(
         "original_score": score,
         "capped_score": 59,
         "reason": "Plain generic secrets without provider evidence stay within the medium band.",
+    }
+
+
+def _apply_high_floor_provider_cap(
+    base_score: RiskScore,
+    score: int,
+    provider_floor: Any,
+) -> tuple[int, dict[str, Any] | None]:
+    if provider_floor is None:
+        return score, None
+    if provider_floor.minimum_severity != "high":
+        return score, None
+    if base_score.risk_level == "critical":
+        return score, None
+    if score <= 79:
+        return score, None
+    return 79, {
+        "type": "high_floor_provider_without_active_validation",
+        "provider": provider_floor.provider,
+        "original_score": score,
+        "capped_score": 79,
+        "reason": "High-floor provider token without active validation stays within the high band.",
     }
 
 
