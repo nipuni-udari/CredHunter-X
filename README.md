@@ -13,6 +13,7 @@ of false positives while preserving ~96% recall** on real leaked credentials.
 gitleaks → normalize → rule filter → LLM classify → LLM rank → LLM explain → LLM remediate → CI decision
 ```
 
+
 **The LLM pipeline is on by default and degrades gracefully.** Each stage runs
 only when an `OPENAI_API_KEY` is available; with no key (or on any API error)
 that stage is skipped and the deterministic rule filter, risk score, and
