@@ -240,7 +240,7 @@ def _regex_fallback(source: str, relative_path: str) -> list[RawFinding]:
                 candidates.append(
                     RawFinding(
                         detector="python.regex",
-                        secret_type="oauth_token",
+                        secret_type="bearer_token",
                         file_path=relative_path,
                         line_number=line_number,
                         raw_secret=token,
@@ -293,5 +293,5 @@ def _secret_type(candidate_type: str) -> str:
     if candidate_type == "connection_string":
         return "database_url"
     if candidate_type == "authorization_header":
-        return "oauth_token"
+        return "bearer_token"
     return "generic_secret"

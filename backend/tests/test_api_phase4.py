@@ -52,8 +52,8 @@ class APIPhase4Tests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["risk_level"], "high")
-        self.assertEqual(body["action"], "manual_review")
+        self.assertEqual(body["risk_level"], "critical")
+        self.assertEqual(body["action"], "fail")
         self.assertIn("risk_score", body)
 
     def test_suppress_and_mark_finding(self):

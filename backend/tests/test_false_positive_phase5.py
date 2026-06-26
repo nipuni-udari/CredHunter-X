@@ -44,7 +44,7 @@ class FalsePositivePhase5Tests(unittest.TestCase):
         self.assertEqual(decision.blocking_count, 1)
         self.assertEqual(decision.findings[0].risk_level, "critical")
 
-    def test_docs_provider_token_is_warned_not_ignored(self):
+    def test_docs_provider_token_is_not_ignored_or_downgraded_below_floor(self):
         finding = normalize_finding(
             RawFinding(
                 detector="regex.github_token",
@@ -60,8 +60,9 @@ class FalsePositivePhase5Tests(unittest.TestCase):
 
         decision = evaluate_findings([finding], config)
 
-        self.assertEqual(decision.action, "warn")
-        self.assertEqual(decision.findings[0].risk_level, "medium")
+        self.assertEqual(decision.action, "fail")
+        self.assertEqual(decision.findings[0].risk_level, "critical")
+        self.assertGreaterEqual(decision.findings[0].risk_score.score, 90)
         self.assertEqual(decision.findings[0].false_positive_assessment.classification, "uncertain")
 
     def test_local_database_url_is_ignored(self):

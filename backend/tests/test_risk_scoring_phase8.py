@@ -30,17 +30,18 @@ class RiskScoringPhase8Tests(unittest.TestCase):
         self.assertEqual(risk.risk_level, "critical")
         self.assertGreaterEqual(risk.score, 90)
 
-    def test_high_risk_below_critical_threshold_requires_manual_review(self):
+    def test_github_token_floor_reaches_critical_threshold(self):
         finding = _github_source_finding()
         config = CredHunterConfig()
         config.scan.fail_on = "critical"
 
         decision = evaluate_findings([finding], config)
 
-        self.assertEqual(decision.action, "manual_review")
-        self.assertEqual(decision.manual_review_count, 1)
-        self.assertEqual(decision.findings[0].risk_level, "high")
-        self.assertGreaterEqual(decision.findings[0].risk_score.score, 60)
+        self.assertEqual(decision.action, "fail")
+        self.assertEqual(decision.blocking_count, 1)
+        self.assertEqual(decision.findings[0].risk_level, "critical")
+        self.assertGreaterEqual(decision.findings[0].risk_score.score, 90)
+        self.assertEqual(decision.findings[0].risk_score.risk_floor["provider"], "github_token")
 
     def test_active_validation_pushes_token_to_critical(self):
         finding = _github_source_finding()

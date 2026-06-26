@@ -24,6 +24,12 @@ from typing import Any, Callable
 
 from app.ci.config import CredHunterConfig
 from app.scanner.models import NormalizedFinding
+from app.scanner.provider_inference import (
+    apply_provider_inference,
+    apply_score_floor,
+    provider_floor_for_finding,
+    risk_floor_metadata,
+)
 from app.services.false_positive_filter import assess_false_positive
 from app.services.llm_client import llm_ready, openai_json_call
 from app.services.llm_filter_service import LLMClassification, build_llm_payload
@@ -33,8 +39,6 @@ from app.services.risk_scoring_service import (
     risk_level_from_score,
     score_finding,
 )
-
-PRIVATE_KEY_FLOOR = 90
 
 Ranker = Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]]
 
@@ -92,8 +96,9 @@ class LLMRankerService:
         config: CredHunterConfig | None = None,
     ) -> LLMRanking | None:
         active_config = config or self.config
+        apply_provider_inference(finding)
 
-        skip_reason = _skip_reason(active_config)
+        skip_reason = _skip_reason(finding, active_config)
         base_score = _deterministic_score(finding, active_config, classification)
         if skip_reason:
             return _fallback_ranking(base_score, active_config.llm.model, skip_reason)
@@ -101,12 +106,14 @@ class LLMRankerService:
         payload = _build_rank_payload(finding, active_config, classification, base_score)
         try:
             result = self.ranker(payload, active_config)
-            return _validated_ranking(result, finding, base_score, active_config.llm.model)
+            return _validated_ranking(result, finding, base_score, classification, active_config)
         except Exception as exc:  # noqa: BLE001 - any failure falls back to deterministic.
             return _fallback_ranking(base_score, active_config.llm.model, str(exc))
 
 
-def _skip_reason(config: CredHunterConfig) -> str | None:
+def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | None:
+    if assess_false_positive(finding, config).ignored:
+        return "Deterministic rule already classified finding as an obvious false positive."
     if not config.llm.rank:
         return "LLM ranking is disabled in configuration."
     return llm_ready(config)
@@ -159,22 +166,43 @@ def _validated_ranking(
     result: dict[str, Any],
     finding: NormalizedFinding,
     base_score: RiskScore,
-    model: str,
+    classification: LLMClassification | None,
+    config: CredHunterConfig,
 ) -> LLMRanking:
     score = _clamp_score(result.get("score"), base_score.score)
-    if finding.secret_type == "private_key":
-        score = max(score, PRIVATE_KEY_FLOOR)
+    applied_floor = None
+    if not _classification_suppresses_floor(finding, classification, config):
+        score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
 
     risk_level = risk_level_from_score(score)
-    metadata = result.get("metadata")
+    metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    floor_metadata = risk_floor_metadata(applied_floor)
+    if floor_metadata:
+        metadata = dict(metadata)
+        metadata["risk_floor"] = floor_metadata
     return LLMRanking(
         score=score,
         risk_level=risk_level,
         recommended_action=recommended_action_for_level(risk_level),
         rationale=str(result.get("rationale", "No rationale supplied."))[:500],
-        model=model,
+        model=config.llm.model,
         used=True,
-        metadata=metadata if isinstance(metadata, dict) else {},
+        metadata=metadata,
+    )
+
+
+def _classification_suppresses_floor(
+    finding: NormalizedFinding,
+    classification: LLMClassification | None,
+    config: CredHunterConfig,
+) -> bool:
+    if finding.secret_type == "private_key":
+        return False
+    return bool(
+        classification
+        and classification.used
+        and classification.confidence >= config.llm.min_confidence
+        and classification.classification in {"likely_false_positive", "false_positive"}
     )
 
 
@@ -194,7 +222,8 @@ def _rank_instructions() -> str:
         "classification. Assign a final risk score from 0 to 100 that reflects how urgently a "
         "developer should act, where higher means more dangerous. Treat the rule-based score as a "
         "strong prior and adjust it using the classification and context. Never require or infer "
-        "the raw secret. Never score a private key below 90. Return only valid JSON with keys: "
+        "the raw secret. Provider tokens and private keys have deterministic minimum floors that "
+        "will be enforced after your score. Return only valid JSON with keys: "
         "score (integer 0-100), rationale (one short sentence). "
         "Be conservative: do not lower the score for provider tokens in source/config files unless "
         "the context is clearly documentation, placeholder, test fixture, or local-only."

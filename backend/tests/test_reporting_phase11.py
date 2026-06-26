@@ -35,7 +35,8 @@ class ReportingPhase11Tests(unittest.TestCase):
         self.assertIn("CredHunter-X Report", markdown)
         self.assertIn("GitHub token", markdown)
         self.assertIn("Revoke or rotate the GitHub token.", markdown)
-        self.assertIn("manual_review", markdown)
+        self.assertIn("fail", markdown)
+        self.assertIn("critical", markdown)
 
     def test_cli_writes_pr_comment_output(self):
         output_dir = Path("tests/fixtures/generated")
@@ -64,7 +65,7 @@ class ReportingPhase11Tests(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(exit_code, 0)
+        self.assertEqual(exit_code, 1)
         self.assertTrue(output_path.exists())
         self.assertIn("CredHunter-X Report", output_path.read_text(encoding="utf-8"))
 

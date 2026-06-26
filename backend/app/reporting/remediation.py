@@ -12,10 +12,23 @@ REMEDIATION_BY_TYPE = {
         "Review recent IAM activity for suspicious use.",
         "Store the replacement credential in GitHub Actions secrets or a cloud secret manager.",
     ],
+    "aws_access_key_id": [
+        "Disable or rotate the AWS access key.",
+        "Review recent IAM activity for suspicious use.",
+        "Store the replacement credential in GitHub Actions secrets or a cloud secret manager.",
+    ],
     "github_token": [
         "Revoke or rotate the GitHub token.",
-        "Check token scopes and recent token activity.",
-        "Use GitHub Actions secrets for future pipeline access.",
+        "Remove it from source code and purge it from git history if it was committed.",
+        "Store the replacement in GitHub Actions Secrets or a secret manager.",
+        "Load the token from an environment variable such as GITHUB_TOKEN.",
+        "Review token scope, repository access, and recent token activity.",
+    ],
+    "openai_api_key": [
+        "Revoke or rotate the OpenAI API key.",
+        "Remove it from source code and git history if it was committed.",
+        "Store the replacement in GitHub Actions Secrets or a secret manager.",
+        "Load it from an environment variable such as OPENAI_API_KEY.",
     ],
     "database_url": [
         "Rotate the database password if the URL points to a real service.",
@@ -24,6 +37,11 @@ REMEDIATION_BY_TYPE = {
     ],
     "oauth_token": [
         "Revoke or rotate the OAuth credential.",
+        "Review granted scopes and connected application activity.",
+        "Store replacement values outside source control.",
+    ],
+    "bearer_token": [
+        "Revoke or rotate the bearer token.",
         "Review granted scopes and connected application activity.",
         "Store replacement values outside source control.",
     ],

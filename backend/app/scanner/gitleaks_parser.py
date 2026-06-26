@@ -91,7 +91,7 @@ def _from_sarif(payload: dict[str, Any]):
 def _secret_type_from_rule(rule_id: str) -> str:
     lowered = rule_id.lower()
     if "aws" in lowered:
-        return "aws_access_key"
+        return "aws_access_key_id"
     if "github" in lowered:
         return "github_token"
     if "jwt" in lowered:

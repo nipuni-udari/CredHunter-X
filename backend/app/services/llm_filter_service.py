@@ -7,6 +7,7 @@ from typing import Any, Callable
 from app.ci.config import CredHunterConfig
 from app.core.env import load_local_env
 from app.scanner.models import NormalizedFinding
+from app.scanner.provider_inference import apply_provider_inference
 from app.services.false_positive_filter import assess_false_positive
 from app.services.llm_client import openai_json_call
 
@@ -17,9 +18,6 @@ LLM_LABELS = {
     "likely_false_positive",
     "false_positive",
 }
-
-NON_DOWNGRADABLE_TYPES = {"private_key"}
-
 
 @dataclass(slots=True)
 class LLMClassification:
@@ -104,6 +102,7 @@ class LLMFilterService:
 
 
 def build_llm_payload(finding: NormalizedFinding, config: CredHunterConfig) -> dict[str, Any]:
+    apply_provider_inference(finding)
     rule_assessment = assess_false_positive(finding, config)
     return {
         "secret_type": finding.secret_type,
@@ -124,17 +123,16 @@ def build_llm_payload(finding: NormalizedFinding, config: CredHunterConfig) -> d
 
 
 def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | None:
+    apply_provider_inference(finding)
     load_local_env()
     if not config.llm.enabled:
         return "LLM filtering is disabled in configuration."
-    if finding.secret_type in NON_DOWNGRADABLE_TYPES:
-        return "Finding type is not eligible for LLM downgrade."
-    if not os.getenv("OPENAI_API_KEY"):
-        return "OPENAI_API_KEY is not set."
 
     rule_assessment = assess_false_positive(finding, config)
     if rule_assessment.ignored:
         return "Deterministic rule already classified finding as an obvious false positive."
+    if not os.getenv("OPENAI_API_KEY"):
+        return "OPENAI_API_KEY is not set."
     return None
 
 

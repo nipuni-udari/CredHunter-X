@@ -5,6 +5,12 @@ from pathlib import PurePosixPath
 
 from app.ci.config import CredHunterConfig
 from app.scanner.models import NormalizedFinding
+from app.scanner.provider_inference import (
+    apply_provider_inference,
+    apply_score_floor,
+    provider_floor_for_finding,
+    risk_floor_metadata,
+)
 from app.services.false_positive_filter import FalsePositiveAssessment
 from app.services.llm_filter_service import LLMClassification
 from app.services.validation_service import ValidationResult
@@ -29,6 +35,7 @@ class RiskScore:
     # "rules" -> deterministic composite score; "llm" -> refined by the LLM Ranker.
     source: str = "rules"
     rationale: str | None = None
+    risk_floor: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -38,18 +45,22 @@ class RiskScore:
             "components": [component.to_dict() for component in self.components],
             "source": self.source,
             "rationale": self.rationale,
+            "risk_floor": self.risk_floor,
         }
 
 
 SECRET_TYPE_WEIGHTS = {
     "private_key": 50,
     "aws_access_key": 40,
+    "aws_access_key_id": 40,
+    "openai_api_key": 40,
     "stripe_api_key": 40,
     "github_token": 35,
     "google_api_key": 35,
     "slack_token": 30,
     "database_url": 30,
     "oauth_token": 30,
+    "bearer_token": 30,
     "jwt": 20,
     "generic_high_entropy_secret": 15,
     "generic_secret": 15,
@@ -65,6 +76,7 @@ def score_finding(
     llm_classification: LLMClassification | None = None,
     validation_result: ValidationResult | None = None,
 ) -> RiskScore:
+    apply_provider_inference(finding)
     components = [
         _detector_component(finding),
         _secret_type_component(finding),
@@ -77,8 +89,17 @@ def score_finding(
     raw_score = sum(component.value for component in components)
     score = _clamp(raw_score)
 
-    if finding.secret_type == "private_key":
-        score = max(score, 90)
+    applied_floor = None
+    if not _risk_floor_exempt(finding, false_positive_assessment, llm_classification, config):
+        score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
+        if applied_floor:
+            components.append(
+                RiskComponent(
+                    "provider_risk_floor",
+                    applied_floor.minimum_score - _clamp(raw_score),
+                    f"Provider-specific floor applied: {applied_floor.provider}:{applied_floor.minimum_score}.",
+                )
+            )
     if _needs_conservative_medium_floor(finding, false_positive_assessment, llm_classification, config):
         score = max(score, 35)
 
@@ -88,7 +109,28 @@ def score_finding(
         risk_level=risk_level,
         recommended_action=_recommended_action(risk_level),
         components=components,
+        risk_floor=risk_floor_metadata(applied_floor),
     )
+
+
+def _risk_floor_exempt(
+    finding: NormalizedFinding,
+    assessment: FalsePositiveAssessment,
+    llm_classification: LLMClassification | None,
+    config: CredHunterConfig,
+) -> bool:
+    if assessment.ignored:
+        return True
+    if finding.secret_type == "private_key":
+        return False
+    if (
+        llm_classification
+        and llm_classification.used
+        and llm_classification.confidence >= config.llm.min_confidence
+        and llm_classification.classification in {"likely_false_positive", "false_positive"}
+    ):
+        return True
+    return False
 
 
 def risk_value(risk_level: str) -> int:
@@ -178,7 +220,7 @@ def _needs_conservative_medium_floor(
 ) -> bool:
     if assessment.classification != "uncertain":
         return False
-    if finding.secret_type not in {"aws_access_key", "github_token", "database_url", "oauth_token"}:
+    if finding.secret_type not in {"aws_access_key", "aws_access_key_id", "github_token", "database_url", "oauth_token", "bearer_token"}:
         return False
     if (
         llm_classification

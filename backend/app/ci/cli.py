@@ -8,6 +8,7 @@ from app.scanner.candidate_merger import merge_and_dedupe
 from app.scanner.gitleaks_parser import parse_gitleaks_report
 from app.scanner.models import NormalizedFinding
 from app.scanner.python_candidate_extractor import extract_python_candidates
+from app.scanner.provider_inference import apply_provider_inference
 from app.scanner.source_context import DEFAULT_CONTEXT_LINES, enrich_with_source_context
 from app.services.false_positive_filter import assess_false_positive
 from app.services.llm_filter_service import LLMClassification, LLMFilterService
@@ -213,6 +214,8 @@ def _generate_candidates(args) -> list[NormalizedFinding]:
             before=args.context_lines,
             after=args.context_lines,
         )
+    for finding in findings:
+        apply_provider_inference(finding)
     return findings
 
 

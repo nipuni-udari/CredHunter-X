@@ -13,7 +13,7 @@ from unittest import mock
 
 from app.ci.cli import _cost_aware_targets
 from app.ci.config import CredHunterConfig
-from app.ci.decision import FindingDecision
+from app.ci.decision import FindingDecision, evaluate_findings
 from app.reporting.markdown import build_markdown_summary, build_pr_comment
 from app.reporting.html_report import build_html_report
 from app.ci.decision import CIDecision
@@ -26,9 +26,14 @@ from app.services import llm_cache
 from app.services.false_positive_filter import assess_false_positive
 from app.services.llm_client import parse_json_response
 from app.services.llm_explainer_service import LLMExplanation
+from app.services.llm_explainer_service import LLMExplainerService
 from app.services.llm_filter_service import LLMClassification
+from app.services.llm_filter_service import LLMFilterService
 from app.services.llm_ranker_service import LLMRanking
+from app.services.llm_ranker_service import LLMRankerService
 from app.services.llm_remediation_service import LLMRemediation
+from app.services.llm_remediation_service import LLMRemediationService
+from app.services.risk_scoring_service import RiskScore
 
 
 def _finding(**overrides) -> NormalizedFinding:
@@ -320,6 +325,131 @@ class CostAwareTargetTests(unittest.TestCase):
         self.assertNotIn(llm_fp.finding_id, target_ids)
 
 
+class ProviderFloorAndLLMStageTests(unittest.TestCase):
+    def setUp(self):
+        self.config = CredHunterConfig()
+        self.config.scan.fail_on = "critical"
+        self.config.llm.enabled = True
+        self.config.llm.rank = True
+        self.config.llm.explain = True
+        self.config.llm.remediate = True
+
+    def test_generic_github_token_gets_provider_floor_and_fails_critical(self):
+        finding = _finding(
+            file_path="src/hardcoded_realistic.py",
+            line_number=12,
+            raw_secret="ghp_xxxxxxxxxxxxxxxxxxxx",
+            secret_type="generic_secret",
+        )
+        finding.metadata["target_line"] = 'GITHUB_TOKEN = "gh****xx"'
+
+        decision = evaluate_findings([finding], self.config)
+        item = decision.findings[0]
+
+        self.assertEqual(item.finding.secret_type, "github_token")
+        self.assertGreaterEqual(item.risk_score.score, 90)
+        self.assertEqual(item.risk_level, "critical")
+        self.assertEqual(item.action, "fail")
+        self.assertEqual(item.risk_score.risk_floor["provider"], "github_token")
+
+    def test_full_llm_stages_attempted_for_non_ignored_github_token(self):
+        finding = _finding(
+            file_path="src/hardcoded_realistic.py",
+            line_number=12,
+            raw_secret="ghp_1234567890abcdef123456",
+            secret_type="generic_secret",
+        )
+        finding.metadata["target_line"] = 'GITHUB_TOKEN = "gh****56"'
+
+        calls = {"classify": 0, "rank": 0, "explain": 0, "remediate": 0}
+
+        def classify(payload, active_config):
+            calls["classify"] += 1
+            return {
+                "classification": "true_positive",
+                "confidence": 0.95,
+                "reason": "Provider token in source.",
+                "recommended_action": "block",
+            }
+
+        def rank(payload, active_config):
+            calls["rank"] += 1
+            return {"score": 33, "rationale": "Model under-ranked this token."}
+
+        def explain(payload, active_config):
+            calls["explain"] += 1
+            return {"explanation": "A GitHub token is hardcoded in application source."}
+
+        def remediate(payload, active_config):
+            calls["remediate"] += 1
+            return {"steps": ["Revoke the GitHub token.", "Move it to GitHub Actions Secrets."]}
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            classifications = LLMFilterService(self.config, classifier=classify).classify_findings([finding], self.config)
+            rankings = LLMRankerService(self.config, ranker=rank).rank_findings([finding], classifications, self.config)
+            explanations = LLMExplainerService(self.config, explainer=explain).explain_findings(
+                [finding], classifications, rankings, self.config
+            )
+            remediations = LLMRemediationService(self.config, remediator=remediate).remediate_findings(
+                [finding], classifications, rankings, self.config
+            )
+            decision = evaluate_findings(
+                [finding],
+                self.config,
+                llm_classifications=classifications,
+                llm_rankings=rankings,
+                llm_explanations=explanations,
+                llm_remediations=remediations,
+            )
+
+        item = decision.findings[0]
+        self.assertEqual(calls, {"classify": 1, "rank": 1, "explain": 1, "remediate": 1})
+        self.assertTrue(item.llm_classification.used)
+        self.assertTrue(item.llm_ranking.used)
+        self.assertTrue(item.llm_explanation.used)
+        self.assertTrue(item.llm_remediation.used)
+        self.assertGreaterEqual(item.risk_score.score, 90)
+        self.assertEqual(item.risk_score.risk_floor["provider"], "github_token")
+
+    def test_placeholder_is_ignored_and_skips_llm_stages(self):
+        finding = _finding(secret_type="stripe_api_key", raw_secret="YOUR_API_KEY_HERE")
+        finding.metadata["target_line"] = 'STRIPE_API_KEY = "YOUR_API_KEY_HERE"'
+        calls = {"classify": 0}
+
+        def classify(payload, active_config):
+            calls["classify"] += 1
+            return {"classification": "true_positive", "confidence": 0.9}
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            classifications = LLMFilterService(self.config, classifier=classify).classify_findings([finding], self.config)
+            rankings = LLMRankerService(self.config, ranker=lambda p, c: {"score": 90}).rank_findings(
+                [finding], classifications, self.config
+            )
+            explanations = LLMExplainerService(self.config, explainer=lambda p, c: {"explanation": "x"}).explain_findings(
+                [finding], classifications, rankings, self.config
+            )
+            remediations = LLMRemediationService(self.config, remediator=lambda p, c: {"steps": ["x"]}).remediate_findings(
+                [finding], classifications, rankings, self.config
+            )
+            decision = evaluate_findings(
+                [finding],
+                self.config,
+                llm_classifications=classifications,
+                llm_rankings=rankings,
+                llm_explanations=explanations,
+                llm_remediations=remediations,
+            )
+
+        item = decision.findings[0]
+        self.assertEqual(calls["classify"], 0)
+        self.assertEqual(item.action, "ignore")
+        self.assertEqual(item.false_positive_assessment.classification, "false_positive")
+        self.assertFalse(item.llm_classification.used)
+        self.assertFalse(item.llm_ranking.used)
+        self.assertFalse(item.llm_explanation.used)
+        self.assertFalse(item.llm_remediation.used)
+
+
 class MarkdownSummaryTests(unittest.TestCase):
     def _decision(self) -> CIDecision:
         finding = _finding(secret_type="github_token", file_path="src/config.py", line_number=12, raw_secret="ghp_abcdefghijklmnopqrstuvwx")
@@ -381,10 +511,42 @@ class MarkdownSummaryTests(unittest.TestCase):
         self.assertIn("Engine: LLM-assisted", report)
         self.assertIn("Model: `o4-mini`", report)
         self.assertIn("LLM stages enabled: classify, rank, explain, remediate", report)
+        self.assertIn("classify=used; rank=used; explain=used; remediate=used", report)
+        self.assertIn("risk_floor=none", report)
         self.assertIn("llm_filter.used=true", report)
         self.assertIn("llm_ranker.used=true", report)
         self.assertIn("llm_explanation.used=true", report)
         self.assertIn("llm_remediation.used=true", report)
+
+    def test_report_shows_risk_floor_when_applied(self):
+        finding = _finding(secret_type="github_token", file_path="src/config.py", line_number=12)
+        item = FindingDecision(
+            finding=finding,
+            risk_level="critical",
+            action="fail",
+            reason="Hardcoded token.",
+            risk_score=RiskScore(
+                90,
+                "critical",
+                "fail",
+                risk_floor={"provider": "github_token", "minimum_score": 90},
+            ),
+            llm_classification=LLMClassification("true_positive", 0.91, "real token", "block", "o4-mini", True),
+        )
+        decision = CIDecision(
+            action="fail",
+            exit_code=1,
+            finding_count=1,
+            blocking_count=1,
+            warning_count=0,
+            manual_review_count=0,
+            ignored_count=0,
+            findings=[item],
+        )
+        report = build_markdown_summary(decision)
+        html = build_html_report(decision)
+        self.assertIn("risk_floor=github_token:90", report)
+        self.assertIn("risk_floor=github_token:90", html)
 
     def test_false_positive_classification_is_hidden_from_main_table(self):
         finding = _finding(secret_type="generic_secret", file_path="src/config.py", line_number=2)

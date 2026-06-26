@@ -4,12 +4,25 @@ from dataclasses import dataclass
 
 from app.reporting.remediation import remediation_steps
 from app.scanner.models import NormalizedFinding
+from app.scanner.provider_inference import (
+    apply_provider_inference,
+    apply_score_floor,
+    provider_floor_for_finding,
+    risk_floor_metadata,
+)
 from app.services.false_positive_filter import FalsePositiveAssessment, assess_false_positive
 from app.services.llm_explainer_service import LLMExplanation
 from app.services.llm_filter_service import LLMClassification
 from app.services.llm_ranker_service import LLMRanking
 from app.services.llm_remediation_service import LLMRemediation
-from app.services.risk_scoring_service import RiskComponent, RiskScore, risk_value, score_finding
+from app.services.risk_scoring_service import (
+    RiskComponent,
+    RiskScore,
+    recommended_action_for_level,
+    risk_level_from_score,
+    risk_value,
+    score_finding,
+)
 from app.services.validation_service import ValidationResult
 
 from .config import CredHunterConfig
@@ -197,10 +210,14 @@ def _llm_status(
 
 
 def _first_skip_reason(classifications: dict[str, LLMClassification]) -> str | None:
+    fallback_reason = None
     for classification in classifications.values():
         if not classification.used and classification.skipped_reason:
-            return classification.skipped_reason
-    return None
+            if fallback_reason is None:
+                fallback_reason = classification.skipped_reason
+            if "classified finding as an obvious false positive" not in classification.skipped_reason:
+                return classification.skipped_reason
+    return fallback_reason
 
 
 def _evaluate_finding(
@@ -212,10 +229,18 @@ def _evaluate_finding(
     llm_explanation: LLMExplanation | None = None,
     llm_remediation: LLMRemediation | None = None,
 ) -> FindingDecision:
+    apply_provider_inference(finding)
     assessment = assess_false_positive(finding, config)
     risk_score = score_finding(finding, config, assessment, llm_classification, validation_result)
     if llm_ranking and llm_ranking.used:
-        risk_score = _apply_llm_ranking(risk_score, llm_ranking)
+        risk_score = _apply_llm_ranking(
+            finding,
+            config,
+            assessment,
+            llm_classification,
+            risk_score,
+            llm_ranking,
+        )
 
     def decide(risk_level: str, action: str, reason: str) -> FindingDecision:
         return FindingDecision(
@@ -265,26 +290,71 @@ def _evaluate_finding(
     return decide(risk_level, action, reason)
 
 
-def _apply_llm_ranking(base_score: RiskScore, ranking: LLMRanking) -> RiskScore:
+def _apply_llm_ranking(
+    finding: NormalizedFinding,
+    config: CredHunterConfig,
+    assessment: FalsePositiveAssessment,
+    llm_classification: LLMClassification | None,
+    base_score: RiskScore,
+    ranking: LLMRanking,
+) -> RiskScore:
     """Replace the deterministic score with the LLM Ranker's, keeping the rule
     components for transparency and recording the adjustment."""
 
     components = list(base_score.components)
+    final_score = ranking.score
+    final_floor = None
+    if not _risk_floor_exempt(finding, assessment, llm_classification, config):
+        final_score, final_floor = apply_score_floor(final_score, provider_floor_for_finding(finding))
     components.append(
         RiskComponent(
             "llm_ranking",
-            ranking.score - base_score.score,
-            f"LLM Ranker set score to {ranking.score}: {ranking.rationale}",
+            final_score - base_score.score,
+            f"LLM Ranker set score to {final_score}: {ranking.rationale}",
         )
     )
+    if final_floor:
+        components.append(
+            RiskComponent(
+                "provider_risk_floor",
+                final_floor.minimum_score - ranking.score,
+                f"Provider-specific floor applied after LLM ranking: {final_floor.provider}:{final_floor.minimum_score}.",
+            )
+        )
+    risk_level = ranking.risk_level
+    recommended_action = ranking.recommended_action
+    if final_score != ranking.score:
+        risk_level = risk_level_from_score(final_score)
+        recommended_action = recommended_action_for_level(risk_level)
     return RiskScore(
-        score=ranking.score,
-        risk_level=ranking.risk_level,
-        recommended_action=ranking.recommended_action,
+        score=final_score,
+        risk_level=risk_level,
+        recommended_action=recommended_action,
         components=components,
         source="llm",
         rationale=ranking.rationale,
+        risk_floor=risk_floor_metadata(final_floor) or base_score.risk_floor,
     )
+
+
+def _risk_floor_exempt(
+    finding: NormalizedFinding,
+    assessment: FalsePositiveAssessment,
+    llm_classification: LLMClassification | None,
+    config: CredHunterConfig,
+) -> bool:
+    if assessment.ignored:
+        return True
+    if finding.secret_type == "private_key":
+        return False
+    if (
+        llm_classification
+        and llm_classification.used
+        and llm_classification.confidence >= config.llm.min_confidence
+        and llm_classification.classification in {"likely_false_positive", "false_positive"}
+    ):
+        return True
+    return False
 
 
 def _llm_can_ignore(

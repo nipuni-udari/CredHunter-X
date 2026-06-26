@@ -109,12 +109,15 @@ def build_pr_comment(decision: CIDecision, max_findings: int = 10) -> str:
 _SECRET_TITLES = {
     "private_key": "Hardcoded Private Key",
     "aws_access_key": "Hardcoded AWS Access Key",
+    "aws_access_key_id": "Hardcoded AWS Access Key",
+    "openai_api_key": "Hardcoded OpenAI API Key",
     "github_token": "Hardcoded GitHub Token",
     "google_api_key": "Hardcoded Google API Key",
     "stripe_api_key": "Hardcoded Stripe API Key",
     "slack_token": "Hardcoded Slack Token",
     "database_url": "Hardcoded Database Connection String",
     "oauth_token": "Hardcoded OAuth / Bearer Token",
+    "bearer_token": "Hardcoded OAuth / Bearer Token",
     "jwt": "Hardcoded JWT",
     "generic_secret": "Hardcoded Secret",
     "generic_high_entropy_secret": "Hardcoded High-Entropy Secret",
@@ -124,8 +127,11 @@ _SAFE_PATTERNS = {
     "database_url": 'DATABASE_URL = os.getenv("DATABASE_URL")',
     "github_token": 'GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")',
     "aws_access_key": 'AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")',
+    "aws_access_key_id": 'AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")',
+    "openai_api_key": 'OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")',
     "jwt": 'JWT = os.getenv("JWT")',
     "oauth_token": 'ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")',
+    "bearer_token": 'ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")',
 }
 _DEFAULT_SAFE_PATTERN = 'API_KEY = os.getenv("API_KEY")'
 
@@ -236,7 +242,16 @@ def _used_stages(stages: dict) -> list[str]:
 
 
 def _stage_status_summary(item: FindingDecision) -> str:
+    if item.false_positive_assessment and item.false_positive_assessment.ignored:
+        return "skipped because local false-positive filter ignored the finding"
+
+    risk_floor = _risk_floor_label(item)
     labels = [
+        f"classify={_stage_state(item.llm_classification)}",
+        f"rank={_stage_state(item.llm_ranking)}",
+        f"explain={_stage_state(item.llm_explanation)}",
+        f"remediate={_stage_state(item.llm_remediation)}",
+        f"risk_floor={risk_floor}",
         f"llm_filter.used={_used(item.llm_classification)}",
         f"llm_ranker.used={_used(item.llm_ranking)}",
         f"llm_explanation.used={_used(item.llm_explanation)}",
@@ -246,6 +261,28 @@ def _stage_status_summary(item: FindingDecision) -> str:
         f"Remediation: {_remediation_source(item)}",
     ]
     return "; ".join(labels)
+
+
+def _stage_state(stage) -> str:
+    if stage and stage.used:
+        return "used"
+    if stage and stage.skipped_reason:
+        if "disabled" in stage.skipped_reason.lower() or "classified finding" in stage.skipped_reason.lower():
+            return "skipped"
+        return "fallback"
+    return "skipped"
+
+
+def _risk_floor_label(item: FindingDecision) -> str:
+    floor = item.risk_score.risk_floor if item.risk_score else None
+    if not floor:
+        ranking_floor = None
+        if item.llm_ranking and isinstance(item.llm_ranking.metadata, dict):
+            ranking_floor = item.llm_ranking.metadata.get("risk_floor")
+        floor = ranking_floor
+    if not floor:
+        return "none"
+    return f"{floor.get('provider')}:{floor.get('minimum_score')}"
 
 
 def _used(stage) -> str:

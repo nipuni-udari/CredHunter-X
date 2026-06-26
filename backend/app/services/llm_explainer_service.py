@@ -21,6 +21,8 @@ from typing import Any, Callable
 
 from app.ci.config import CredHunterConfig
 from app.scanner.models import NormalizedFinding
+from app.scanner.provider_inference import apply_provider_inference
+from app.services.false_positive_filter import assess_false_positive
 from app.services.llm_client import llm_ready, openai_json_call
 from app.services.llm_filter_service import LLMClassification, build_llm_payload
 from app.services.llm_ranker_service import LLMRanking
@@ -83,8 +85,9 @@ class LLMExplainerService:
         config: CredHunterConfig | None = None,
     ) -> LLMExplanation | None:
         active_config = config or self.config
+        apply_provider_inference(finding)
 
-        skip_reason = _skip_reason(active_config)
+        skip_reason = _skip_reason(finding, active_config)
         if skip_reason:
             return _unused(active_config.llm.model, skip_reason)
 
@@ -96,7 +99,9 @@ class LLMExplainerService:
             return _unused(active_config.llm.model, str(exc))
 
 
-def _skip_reason(config: CredHunterConfig) -> str | None:
+def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | None:
+    if assess_false_positive(finding, config).ignored:
+        return "Deterministic rule already classified finding as an obvious false positive."
     if not config.llm.explain:
         return "LLM explanation is disabled in configuration."
     return llm_ready(config)

@@ -92,7 +92,7 @@ class LLMPhase6Tests(unittest.TestCase):
         self.assertEqual(decision.findings[0].risk_level, "high")
         self.assertEqual(decision.action, "fail")
 
-    def test_private_key_is_not_sent_to_llm_for_downgrade(self):
+    def test_private_key_is_classified_but_not_downgraded(self):
         config = CredHunterConfig()
         config.llm.enabled = True
         finding = normalize_finding(
@@ -106,11 +106,22 @@ class LLMPhase6Tests(unittest.TestCase):
             )
         )
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            assessment = LLMFilterService(config).classify_finding(finding)
+        def fake_classifier(payload, active_config):
+            return {
+                "classification": "false_positive",
+                "confidence": 0.99,
+                "reason": "Model thinks this is a sample.",
+                "recommended_action": "ignore",
+            }
 
-        self.assertFalse(assessment.used)
-        self.assertEqual(assessment.skipped_reason, "Finding type is not eligible for LLM downgrade.")
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            assessment = LLMFilterService(config, classifier=fake_classifier).classify_finding(finding)
+            decision = evaluate_findings([finding], config, {finding.finding_id: assessment})
+
+        self.assertTrue(assessment.used)
+        self.assertEqual(assessment.classification, "false_positive")
+        self.assertEqual(decision.findings[0].risk_level, "critical")
+        self.assertEqual(decision.findings[0].action, "fail")
 
 
 def _github_docs_finding():

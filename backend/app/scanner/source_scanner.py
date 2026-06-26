@@ -11,7 +11,7 @@ MAX_FILE_BYTES = 1_000_000
 SKIPPED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"}
 
 PATTERNS: list[tuple[str, str, re.Pattern[str], float]] = [
-    ("regex.aws_access_key", "aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), 0.9),
+    ("regex.aws_access_key", "aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), 0.9),
     ("regex.github_token", "github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs)_[A-Za-z0-9_]{20,}\b"), 0.9),
     ("regex.github_pat", "github_token", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{30,}\b"), 0.9),
     ("regex.stripe_key", "stripe_api_key", re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b"), 0.9),
