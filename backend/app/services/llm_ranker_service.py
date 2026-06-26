@@ -186,8 +186,10 @@ def _validated_ranking(
         raise ValueError("LLM ranker response did not match the expected schema.")
     score = _clamp_score(result.get("risk_score", result.get("score")), base_score.score)
     applied_floor = None
+    provider_floor = provider_floor_for_finding(finding)
     if not _classification_suppresses_floor(finding, classification, config):
-        score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
+        score, applied_floor = apply_score_floor(score, provider_floor)
+    score, score_cap = _apply_generic_secret_cap(finding, base_score, score, provider_floor)
 
     metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
     model_severity = str(result.get("severity", "")).lower()
@@ -200,6 +202,9 @@ def _validated_ranking(
     if floor_metadata:
         metadata = dict(metadata)
         metadata["risk_floor"] = floor_metadata
+    if score_cap:
+        metadata = dict(metadata)
+        metadata["score_cap"] = score_cap
     return LLMRanking(
         score=score,
         risk_level=risk_level,
@@ -209,6 +214,28 @@ def _validated_ranking(
         used=True,
         metadata=metadata,
     )
+
+
+def _apply_generic_secret_cap(
+    finding: NormalizedFinding,
+    base_score: RiskScore,
+    score: int,
+    provider_floor: Any,
+) -> tuple[int, dict[str, Any] | None]:
+    if provider_floor is not None:
+        return score, None
+    if finding.secret_type != "generic_secret":
+        return score, None
+    if base_score.risk_level not in {"low", "medium"}:
+        return score, None
+    if score <= 59:
+        return score, None
+    return 59, {
+        "type": "generic_secret_without_provider_floor",
+        "original_score": score,
+        "capped_score": 59,
+        "reason": "Plain generic secrets without provider evidence stay within the medium band.",
+    }
 
 
 def _classification_suppresses_floor(
@@ -248,6 +275,8 @@ def _rank_instructions() -> str:
         "will be enforced after your score. Return a structured result with keys: "
         "risk_score (integer 0-100), severity, reason. Severity must match the "
         "score band: low 0-29, medium 30-59, high 60-79, critical 80-100. "
+        "Plain generic_secret findings without provider-specific evidence should normally stay "
+        "in the medium band unless deterministic context already makes them high risk. "
         "Be conservative: do not lower the score for provider tokens in source/config files unless "
         "the context is clearly documentation, placeholder, test fixture, or local-only."
     )

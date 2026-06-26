@@ -89,11 +89,11 @@ class LLMRankerTests(unittest.TestCase):
     def test_ranker_normalizes_mismatched_model_severity_to_score_band(self):
         config = _pipeline_config()
         medium_finding = _finding(secret_type="generic_secret")
-        critical_finding = _finding(secret_type="generic_secret", file_path="src/other_settings.py")
+        critical_finding = _finding(secret_type="github_token", file_path="src/other_settings.py")
 
         def medium_ranker(payload, active_config):
             return {
-                "risk_score": 45,
+                "risk_score": 85,
                 "severity": "high",
                 "reason": "Model severity does not match the numeric score.",
             }
@@ -113,12 +113,13 @@ class LLMRankerTests(unittest.TestCase):
                 critical_finding, None, config
             )
 
-        self.assertEqual(medium.score, 45)
+        self.assertEqual(medium.score, 59)
         self.assertEqual(medium.risk_level, "medium")
         self.assertEqual(medium.recommended_action, "warn")
         self.assertEqual(medium.metadata["model_severity"], "high")
         self.assertEqual(medium.metadata["severity_normalized"], "medium")
-        self.assertEqual(critical.score, 85)
+        self.assertEqual(medium.metadata["score_cap"]["original_score"], 85)
+        self.assertEqual(critical.score, 90)
         self.assertEqual(critical.risk_level, "critical")
         self.assertEqual(critical.recommended_action, "fail")
         self.assertEqual(critical.metadata["model_severity"], "high")
