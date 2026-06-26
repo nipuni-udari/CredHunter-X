@@ -86,6 +86,44 @@ class LLMRankerTests(unittest.TestCase):
         self.assertEqual(ranking.score, 77)
         self.assertEqual(ranking.risk_level, "high")
 
+    def test_ranker_normalizes_mismatched_model_severity_to_score_band(self):
+        config = _pipeline_config()
+        medium_finding = _finding(secret_type="generic_secret")
+        critical_finding = _finding(secret_type="generic_secret", file_path="src/other_settings.py")
+
+        def medium_ranker(payload, active_config):
+            return {
+                "risk_score": 45,
+                "severity": "high",
+                "reason": "Model severity does not match the numeric score.",
+            }
+
+        def critical_ranker(payload, active_config):
+            return {
+                "risk_score": 85,
+                "severity": "high",
+                "reason": "Model severity does not match the numeric score.",
+            }
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            medium = LLMRankerService(config, ranker=medium_ranker).rank_finding(
+                medium_finding, None, config
+            )
+            critical = LLMRankerService(config, ranker=critical_ranker).rank_finding(
+                critical_finding, None, config
+            )
+
+        self.assertEqual(medium.score, 45)
+        self.assertEqual(medium.risk_level, "medium")
+        self.assertEqual(medium.recommended_action, "warn")
+        self.assertEqual(medium.metadata["model_severity"], "high")
+        self.assertEqual(medium.metadata["severity_normalized"], "medium")
+        self.assertEqual(critical.score, 85)
+        self.assertEqual(critical.risk_level, "critical")
+        self.assertEqual(critical.recommended_action, "fail")
+        self.assertEqual(critical.metadata["model_severity"], "high")
+        self.assertEqual(critical.metadata["severity_normalized"], "critical")
+
     def test_ranker_cannot_lower_private_key_below_floor(self):
         config = _pipeline_config()
         finding = _finding(secret_type="private_key", file_path="deploy/key.pem")

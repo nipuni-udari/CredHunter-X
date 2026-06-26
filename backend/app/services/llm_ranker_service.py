@@ -189,16 +189,13 @@ def _validated_ranking(
     if not _classification_suppresses_floor(finding, classification, config):
         score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
 
-    risk_level = risk_level_from_score(score)
-    severity = str(result.get("severity", "")).lower()
-    if score == _clamp_score(result.get("risk_score", result.get("score")), base_score.score) and severity in {
-        "low",
-        "medium",
-        "high",
-        "critical",
-    }:
-        risk_level = severity
     metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    model_severity = str(result.get("severity", "")).lower()
+    risk_level = risk_level_from_score(score)
+    if model_severity in {"low", "medium", "high", "critical"} and model_severity != risk_level:
+        metadata = dict(metadata)
+        metadata["model_severity"] = model_severity
+        metadata["severity_normalized"] = risk_level
     floor_metadata = risk_floor_metadata(applied_floor)
     if floor_metadata:
         metadata = dict(metadata)
@@ -249,7 +246,8 @@ def _rank_instructions() -> str:
         "strong prior and adjust it using the classification and context. Never require or infer "
         "the raw secret. Provider tokens and private keys have deterministic minimum floors that "
         "will be enforced after your score. Return a structured result with keys: "
-        "risk_score (integer 0-100), severity, reason. "
+        "risk_score (integer 0-100), severity, reason. Severity must match the "
+        "score band: low 0-29, medium 30-59, high 60-79, critical 80-100. "
         "Be conservative: do not lower the score for provider tokens in source/config files unless "
         "the context is clearly documentation, placeholder, test fixture, or local-only."
     )
