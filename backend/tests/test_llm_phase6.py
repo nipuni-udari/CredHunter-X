@@ -62,6 +62,40 @@ class LLMPhase6Tests(unittest.TestCase):
         self.assertEqual(decision.findings[0].action, "ignore")
         self.assertEqual(decision.findings[0].llm_classification.classification, "likely_false_positive")
 
+    def test_classifier_schema_response_is_used(self):
+        config = CredHunterConfig()
+        config.llm.enabled = True
+        finding = _github_docs_finding()
+
+        def fake_classifier(payload, active_config):
+            return {
+                "classification": "not_false_positive",
+                "confidence": 0.92,
+                "reason": "A provider token appears in source context.",
+            }
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            assessment = LLMFilterService(config, classifier=fake_classifier).classify_finding(finding)
+
+        self.assertTrue(assessment.used)
+        self.assertEqual(assessment.classification, "likely_true_positive")
+        self.assertEqual(assessment.metadata["schema_classification"], "not_false_positive")
+
+    def test_invalid_classifier_response_falls_back_safely(self):
+        config = CredHunterConfig()
+        config.llm.enabled = True
+        finding = _github_docs_finding()
+
+        def invalid(payload, active_config):
+            return {"message": "not the schema"}
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            assessment = LLMFilterService(config, classifier=invalid).classify_finding(finding)
+
+        self.assertFalse(assessment.used)
+        self.assertTrue(assessment.metadata["fallback"])
+        self.assertIn("expected schema", assessment.metadata["error"])
+
     def test_llm_true_positive_escalates_low_risk_finding(self):
         config = CredHunterConfig()
         config.llm.enabled = True

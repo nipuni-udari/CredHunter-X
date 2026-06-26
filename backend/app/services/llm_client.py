@@ -35,6 +35,8 @@ def openai_json_call(
     instructions: str,
     payload: dict[str, Any],
     max_output_tokens: int,
+    schema_name: str | None = None,
+    schema: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Issue one structured-output OpenAI call and parse the JSON response.
 
@@ -44,27 +46,94 @@ def openai_json_call(
     disabled via ``CREDHUNTER_LLM_CACHE=false``.
     """
 
-    from openai import OpenAI
-
     load_local_env()
     model = os.getenv("CREDHUNTER_OPENAI_MODEL", config.llm.model)
+    user_prompt = json.dumps(payload, sort_keys=True)
+
+    if schema_name and schema:
+        return call_llm_json(model, instructions, user_prompt, schema_name, schema)
 
     cache_key = llm_cache.make_key(model, instructions, payload)
     cached = llm_cache.get(cache_key)
     if cached is not None:
         return cached
 
+    from openai import OpenAI
+
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     response = client.responses.create(
         model=model,
         instructions=instructions,
-        input=json.dumps(payload, sort_keys=True),
+        input=user_prompt,
         max_output_tokens=max_output_tokens,
         store=False,
     )
     result = parse_json_response(response.output_text)
     llm_cache.save(cache_key, result)
     return result
+
+
+def call_llm_json(
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    schema_name: str,
+    schema: dict[str, Any],
+) -> dict[str, Any]:
+    """Call OpenAI with strict Structured Outputs and return the JSON object."""
+
+    load_local_env()
+    cache_payload = {
+        "user_prompt": user_prompt,
+        "schema_name": schema_name,
+        "schema": schema,
+    }
+    cache_key = llm_cache.make_key(model, f"structured:{schema_name}:{system_prompt}", cache_payload)
+    cached = llm_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = client.responses.create(
+        model=model,
+        instructions=system_prompt,
+        input=user_prompt,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": schema_name,
+                "strict": True,
+                "schema": schema,
+            }
+        },
+        store=False,
+    )
+    result = _response_json(response)
+    llm_cache.save(cache_key, result)
+    return result
+
+
+def _response_json(response: Any) -> dict[str, Any]:
+    parsed = getattr(response, "output_parsed", None)
+    if isinstance(parsed, dict):
+        return parsed
+
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return parse_json_response(output_text)
+
+    for item in getattr(response, "output", []) or []:
+        for content in getattr(item, "content", []) or []:
+            parsed = getattr(content, "parsed", None)
+            if isinstance(parsed, dict):
+                return parsed
+            text = getattr(content, "text", None)
+            if isinstance(text, str) and text.strip():
+                return parse_json_response(text)
+
+    raise ValueError("LLM response did not contain a valid JSON object.")
 
 
 def parse_json_response(text: str) -> dict[str, Any]:

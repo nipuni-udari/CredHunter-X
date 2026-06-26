@@ -68,6 +68,24 @@ class LLMRankerTests(unittest.TestCase):
         self.assertEqual(item.risk_level, "critical")
         self.assertEqual(decision.action, "fail")
 
+    def test_ranker_schema_response_is_used(self):
+        config = _pipeline_config()
+        finding = _finding()
+
+        def fake_ranker(payload, active_config):
+            return {
+                "risk_score": 77,
+                "severity": "high",
+                "reason": "Hardcoded token in application settings.",
+            }
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            ranking = LLMRankerService(config, ranker=fake_ranker).rank_finding(finding, None, config)
+
+        self.assertTrue(ranking.used)
+        self.assertEqual(ranking.score, 77)
+        self.assertEqual(ranking.risk_level, "high")
+
     def test_ranker_cannot_lower_private_key_below_floor(self):
         config = _pipeline_config()
         finding = _finding(secret_type="private_key", file_path="deploy/key.pem")
@@ -94,6 +112,8 @@ class LLMRankerTests(unittest.TestCase):
 
         self.assertFalse(ranking.used)
         self.assertEqual(ranking.skipped_reason, "api down")
+        self.assertTrue(ranking.metadata["fallback"])
+        self.assertEqual(ranking.metadata["error"], "api down")
 
 
 class LLMExplainerTests(unittest.TestCase):
@@ -153,6 +173,25 @@ class LLMRemediationTests(unittest.TestCase):
         self.assertTrue(item.llm_remediation.used)
         self.assertEqual(item.remediation()[0], "Revoke this specific GitHub token")
         self.assertEqual(item.to_dict()["remediation"][0], "Revoke this specific GitHub token")
+
+    def test_remediation_schema_response_is_used(self):
+        config = _pipeline_config()
+        finding = _finding(secret_type="github_token", file_path="src/app.py", confidence=0.9)
+
+        def fake_remediator(payload, active_config):
+            return {
+                "remediation_steps": ["Revoke the GitHub token", "Move the replacement to GitHub Actions Secrets"],
+                "safe_code_pattern": 'GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")',
+            }
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            remediation = LLMRemediationService(config, remediator=fake_remediator).remediate_finding(
+                finding, None, None, config
+            )
+
+        self.assertTrue(remediation.used)
+        self.assertEqual(remediation.steps[0], "Revoke the GitHub token")
+        self.assertIn("safe_code_pattern", remediation.metadata)
 
     def test_disabled_remediation_uses_template(self):
         config = CredHunterConfig()

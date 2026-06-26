@@ -42,6 +42,17 @@ from app.services.risk_scoring_service import (
 
 Ranker = Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]]
 
+RANKER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "risk_score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "reason": {"type": "string"},
+    },
+    "required": ["risk_score", "severity", "reason"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(slots=True)
 class LLMRanking:
@@ -129,6 +140,7 @@ def _deterministic_score(
 
 
 def _fallback_ranking(base_score: RiskScore, model: str, skipped_reason: str) -> LLMRanking:
+    is_local_skip = "classified finding as an obvious false positive" in skipped_reason
     return LLMRanking(
         score=base_score.score,
         risk_level=base_score.risk_level,
@@ -137,6 +149,7 @@ def _fallback_ranking(base_score: RiskScore, model: str, skipped_reason: str) ->
         model=model,
         used=False,
         skipped_reason=skipped_reason,
+        metadata={"fallback": not is_local_skip, "error": skipped_reason} if not is_local_skip else {"fallback": False, "skipped": True},
     )
 
 
@@ -169,12 +182,22 @@ def _validated_ranking(
     classification: LLMClassification | None,
     config: CredHunterConfig,
 ) -> LLMRanking:
-    score = _clamp_score(result.get("score"), base_score.score)
+    if "risk_score" not in result and "score" not in result:
+        raise ValueError("LLM ranker response did not match the expected schema.")
+    score = _clamp_score(result.get("risk_score", result.get("score")), base_score.score)
     applied_floor = None
     if not _classification_suppresses_floor(finding, classification, config):
         score, applied_floor = apply_score_floor(score, provider_floor_for_finding(finding))
 
     risk_level = risk_level_from_score(score)
+    severity = str(result.get("severity", "")).lower()
+    if score == _clamp_score(result.get("risk_score", result.get("score")), base_score.score) and severity in {
+        "low",
+        "medium",
+        "high",
+        "critical",
+    }:
+        risk_level = severity
     metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
     floor_metadata = risk_floor_metadata(applied_floor)
     if floor_metadata:
@@ -184,7 +207,7 @@ def _validated_ranking(
         score=score,
         risk_level=risk_level,
         recommended_action=recommended_action_for_level(risk_level),
-        rationale=str(result.get("rationale", "No rationale supplied."))[:500],
+        rationale=str(result.get("reason", result.get("rationale", "No rationale supplied.")))[:500],
         model=config.llm.model,
         used=True,
         metadata=metadata,
@@ -212,6 +235,8 @@ def _openai_ranker(payload: dict[str, Any], config: CredHunterConfig) -> dict[st
         instructions=_rank_instructions(),
         payload=payload,
         max_output_tokens=300,
+        schema_name="credhunter_ranker",
+        schema=RANKER_SCHEMA,
     )
 
 
@@ -223,8 +248,8 @@ def _rank_instructions() -> str:
         "developer should act, where higher means more dangerous. Treat the rule-based score as a "
         "strong prior and adjust it using the classification and context. Never require or infer "
         "the raw secret. Provider tokens and private keys have deterministic minimum floors that "
-        "will be enforced after your score. Return only valid JSON with keys: "
-        "score (integer 0-100), rationale (one short sentence). "
+        "will be enforced after your score. Return a structured result with keys: "
+        "risk_score (integer 0-100), severity, reason. "
         "Be conservative: do not lower the score for provider tokens in source/config files unless "
         "the context is clearly documentation, placeholder, test fixture, or local-only."
     )

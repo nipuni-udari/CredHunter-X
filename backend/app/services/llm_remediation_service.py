@@ -30,6 +30,19 @@ MAX_STEP_LENGTH = 240
 
 Remediator = Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]]
 
+REMEDIATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "remediation_steps": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "safe_code_pattern": {"type": "string"},
+    },
+    "required": ["remediation_steps", "safe_code_pattern"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(slots=True)
 class LLMRemediation:
@@ -107,11 +120,13 @@ def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | 
 
 
 def _fallback(finding: NormalizedFinding, model: str, skipped_reason: str) -> LLMRemediation:
+    is_local_skip = "classified finding as an obvious false positive" in skipped_reason
     return LLMRemediation(
         steps=remediation_steps(finding.secret_type),
         model=model,
         used=False,
         skipped_reason=skipped_reason,
+        metadata={"fallback": not is_local_skip, "error": skipped_reason} if not is_local_skip else {"fallback": False, "skipped": True},
     )
 
 
@@ -138,7 +153,7 @@ def _validated_remediation(
     finding: NormalizedFinding,
     model: str,
 ) -> LLMRemediation:
-    raw_steps = result.get("steps")
+    raw_steps = result.get("remediation_steps", result.get("steps"))
     steps: list[str] = []
     if isinstance(raw_steps, list):
         for item in raw_steps:
@@ -149,12 +164,16 @@ def _validated_remediation(
     if not steps:
         return _fallback(finding, model, "LLM returned no usable remediation steps.")
 
-    metadata = result.get("metadata")
+    metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    safe_code_pattern = str(result.get("safe_code_pattern", "")).strip()
+    if safe_code_pattern:
+        metadata = dict(metadata)
+        metadata["safe_code_pattern"] = safe_code_pattern[:500]
     return LLMRemediation(
         steps=steps[:MAX_STEPS],
         model=model,
         used=True,
-        metadata=metadata if isinstance(metadata, dict) else {},
+        metadata=metadata,
     )
 
 
@@ -164,6 +183,8 @@ def _openai_remediator(payload: dict[str, Any], config: CredHunterConfig) -> dic
         instructions=_remediation_instructions(),
         payload=payload,
         max_output_tokens=350,
+        schema_name="credhunter_remediation",
+        schema=REMEDIATION_SCHEMA,
     )
 
 
@@ -174,6 +195,6 @@ def _remediation_instructions() -> str:
         "two to four concrete, ordered remediation steps tailored to this secret type and file "
         "location (for example: revoke/rotate the specific credential, remove it from the file and "
         "git history, move it to the appropriate secret store). Prefer specificity over the generic "
-        "templates. Never require, infer, or repeat the raw secret. Return only valid JSON with key: "
-        "steps (an array of short strings)."
+        "templates. Never require, infer, or repeat the raw secret. Return a structured result with "
+        "keys: remediation_steps (an array of short strings), safe_code_pattern (string)."
     )

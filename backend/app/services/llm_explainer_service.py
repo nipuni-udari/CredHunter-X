@@ -31,6 +31,15 @@ MAX_EXPLANATION_LENGTH = 800
 
 Explainer = Callable[[dict[str, Any], CredHunterConfig], dict[str, Any]]
 
+EXPLAINER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "explanation": {"type": "string"},
+    },
+    "required": ["explanation"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(slots=True)
 class LLMExplanation:
@@ -108,11 +117,13 @@ def _skip_reason(finding: NormalizedFinding, config: CredHunterConfig) -> str | 
 
 
 def _unused(model: str, skipped_reason: str) -> LLMExplanation:
+    is_local_skip = "classified finding as an obvious false positive" in skipped_reason
     return LLMExplanation(
         explanation="",
         model=model,
         used=False,
         skipped_reason=skipped_reason,
+        metadata={"fallback": not is_local_skip, "error": skipped_reason} if not is_local_skip else {"fallback": False, "skipped": True},
     )
 
 
@@ -154,6 +165,8 @@ def _openai_explainer(payload: dict[str, Any], config: CredHunterConfig) -> dict
         instructions=_explain_instructions(),
         payload=payload,
         max_output_tokens=300,
+        schema_name="credhunter_explainer",
+        schema=EXPLAINER_SCHEMA,
     )
 
 
@@ -163,6 +176,6 @@ def _explain_instructions() -> str:
         "finding, its classification, and its risk score. Write a concise developer-facing "
         "explanation (one to three sentences) of why this was flagged and how serious it is, "
         "grounded in the secret type, file location, and any signals provided. Use plain language a "
-        "developer can act on. Never require, infer, or repeat the raw secret. Return only valid "
-        "JSON with key: explanation (string)."
+        "developer can act on. Never require, infer, or repeat the raw secret. Return a structured "
+        "result with key: explanation (string)."
     )

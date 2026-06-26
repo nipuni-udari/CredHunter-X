@@ -17,7 +17,25 @@ LLM_LABELS = {
     "uncertain",
     "likely_false_positive",
     "false_positive",
+    "not_false_positive",
+    "unknown",
 }
+
+
+CLASSIFIER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "classification": {
+            "type": "string",
+            "enum": ["not_false_positive", "false_positive", "unknown"],
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "reason": {"type": "string"},
+    },
+    "required": ["classification", "confidence", "reason"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(slots=True)
 class LLMClassification:
@@ -83,6 +101,7 @@ class LLMFilterService:
                 model=active_config.llm.model,
                 used=False,
                 skipped_reason=skip_reason,
+                metadata={"fallback": False, "skipped": True},
             )
 
         prompt_payload = build_llm_payload(finding, active_config)
@@ -98,6 +117,7 @@ class LLMFilterService:
                 model=active_config.llm.model,
                 used=False,
                 skipped_reason=str(exc),
+                metadata={"fallback": True, "error": _safe_error(exc)},
             )
 
 
@@ -158,6 +178,8 @@ def _openai_classifier(payload: dict[str, Any], config: CredHunterConfig) -> dic
         instructions=_classify_and_justify_instructions(),
         payload=payload,
         max_output_tokens=350,
+        schema_name="credhunter_classifier",
+        schema=CLASSIFIER_SCHEMA,
     )
     result.setdefault("metadata", {})["workflow"] = "single"
     return result
@@ -176,6 +198,8 @@ def _openai_agentic_classifier(payload: dict[str, Any], config: CredHunterConfig
         instructions=_classify_only_instructions(),
         payload=payload,
         max_output_tokens=120,
+        schema_name="credhunter_classifier_step1",
+        schema=CLASSIFIER_SCHEMA,
     )
     initial_label = str(step1.get("classification", "uncertain")).lower()
     initial_confidence = step1.get("confidence", 0.0)
@@ -190,6 +214,8 @@ def _openai_agentic_classifier(payload: dict[str, Any], config: CredHunterConfig
         instructions=_justify_and_verify_instructions(),
         payload=step2_payload,
         max_output_tokens=350,
+        schema_name="credhunter_classifier_step2",
+        schema=CLASSIFIER_SCHEMA,
     )
 
     result = dict(step2)
@@ -208,12 +234,16 @@ def _openai_json_call(
     instructions: str,
     payload: dict[str, Any],
     max_output_tokens: int,
+    schema_name: str | None = None,
+    schema: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return openai_json_call(
         config=config,
         instructions=instructions,
         payload=payload,
         max_output_tokens=max_output_tokens,
+        schema_name=schema_name,
+        schema=schema,
     )
 
 
@@ -233,10 +263,10 @@ _CONSERVATIVE_RULE = (
 def _classify_and_justify_instructions() -> str:
     return (
         "You classify redacted Git secret-scanner findings for false-positive filtering. "
-        "Never require or infer the raw secret. Return only valid JSON with keys: "
-        "classification, confidence, reason, recommended_action. "
-        + _LABEL_RULES
-        + _ACTION_RULES
+        "Never require or infer the raw secret. Return a structured result with keys: "
+        "classification, confidence, reason. Use classification=not_false_positive for real "
+        "or likely real secrets, false_positive for obvious safe/test/placeholders, and unknown "
+        "when evidence is insufficient. "
         + _CONSERVATIVE_RULE
     )
 
@@ -244,9 +274,10 @@ def _classify_and_justify_instructions() -> str:
 def _classify_only_instructions() -> str:
     return (
         "You are step 1 of a two-step secret-finding triage. Classify the redacted finding only. "
-        "Never require or infer the raw secret. Return only valid JSON with keys: "
-        "classification, confidence. "
-        + _LABEL_RULES
+        "Never require or infer the raw secret. Return a structured result with keys: "
+        "classification, confidence, reason. Use classification=not_false_positive for real "
+        "or likely real secrets, false_positive for obvious safe/test/placeholders, and unknown "
+        "when evidence is insufficient. "
         + _CONSERVATIVE_RULE
     )
 
@@ -255,25 +286,31 @@ def _justify_and_verify_instructions() -> str:
     return (
         "You are step 2 of a two-step secret-finding triage. You receive the finding and a "
         "preliminary classification. Re-check the evidence, correct the classification if it is "
-        "wrong, then justify it. Never require or infer the raw secret. Return only valid JSON with "
-        "keys: classification, confidence, reason, recommended_action. "
-        + _LABEL_RULES
-        + _ACTION_RULES
+        "wrong, then justify it. Never require or infer the raw secret. Return a structured result "
+        "with keys: classification, confidence, reason. Use classification=not_false_positive for "
+        "real or likely real secrets, false_positive for obvious safe/test/placeholders, and unknown "
+        "when evidence is insufficient. "
         + _CONSERVATIVE_RULE
     )
 
 
 def _validated_classification(result: dict[str, Any], model: str) -> LLMClassification:
-    classification = str(result.get("classification", "uncertain")).lower()
-    if classification not in LLM_LABELS:
-        classification = "uncertain"
+    if "classification" not in result or "confidence" not in result:
+        raise ValueError("LLM classifier response did not match the expected schema.")
+    raw_classification = str(result.get("classification", "uncertain")).lower()
+    if raw_classification not in LLM_LABELS:
+        raise ValueError("LLM classifier returned an unsupported classification.")
+    classification = _internal_classification(raw_classification)
 
     confidence = _clamp_float(result.get("confidence", 0.0))
-    recommended_action = str(result.get("recommended_action", "keep_rule_decision")).lower()
+    recommended_action = str(result.get("recommended_action", _default_action(classification))).lower()
     if recommended_action not in {"block", "warn", "ignore", "manual_review", "keep_rule_decision"}:
         recommended_action = "keep_rule_decision"
 
-    metadata = result.get("metadata")
+    metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    if raw_classification != classification:
+        metadata = dict(metadata)
+        metadata["schema_classification"] = raw_classification
     return LLMClassification(
         classification=classification,
         confidence=confidence,
@@ -281,8 +318,23 @@ def _validated_classification(result: dict[str, Any], model: str) -> LLMClassifi
         recommended_action=recommended_action,
         model=model,
         used=True,
-        metadata=metadata if isinstance(metadata, dict) else {},
+        metadata=metadata,
     )
+
+
+def _internal_classification(classification: str) -> str:
+    return {
+        "not_false_positive": "likely_true_positive",
+        "unknown": "uncertain",
+    }.get(classification, classification)
+
+
+def _default_action(classification: str) -> str:
+    if classification == "false_positive":
+        return "ignore"
+    if classification in {"true_positive", "likely_true_positive", "not_false_positive"}:
+        return "manual_review"
+    return "keep_rule_decision"
 
 
 def _safe_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -296,3 +348,7 @@ def _clamp_float(value: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
     return max(0.0, min(1.0, parsed))
+
+
+def _safe_error(exc: Exception) -> str:
+    return str(exc).replace("\n", " ")[:500]

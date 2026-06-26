@@ -24,7 +24,7 @@ from app.scanner.python_candidate_extractor import extract_python_candidates
 from app.scanner.source_context import enrich_with_source_context, mask_line
 from app.services import llm_cache
 from app.services.false_positive_filter import assess_false_positive
-from app.services.llm_client import parse_json_response
+from app.services.llm_client import call_llm_json, parse_json_response
 from app.services.llm_explainer_service import LLMExplanation
 from app.services.llm_explainer_service import LLMExplainerService
 from app.services.llm_filter_service import LLMClassification
@@ -243,6 +243,57 @@ class LLMCacheIntegrationTests(unittest.TestCase):
         self.assertEqual(first, {"classification": "true_positive"})
         self.assertEqual(second, first)
         self.assertEqual(calls["count"], 1)  # second call served from cache.
+
+
+class StructuredOutputClientTests(unittest.TestCase):
+    def test_call_llm_json_uses_strict_json_schema(self):
+        calls = []
+
+        class _Resp:
+            output_text = '{"classification": "not_false_positive", "confidence": 0.93, "reason": "provider token"}'
+
+        class _FakeResponses:
+            def create(self, **kwargs):
+                calls.append(kwargs)
+                return _Resp()
+
+        class _FakeClient:
+            def __init__(self, *a, **k):
+                self.responses = _FakeResponses()
+
+        fake_openai = mock.MagicMock()
+        fake_openai.OpenAI = _FakeClient
+        schema = {
+            "type": "object",
+            "properties": {
+                "classification": {"type": "string", "enum": ["not_false_positive", "false_positive", "unknown"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "reason": {"type": "string"},
+            },
+            "required": ["classification", "confidence", "reason"],
+            "additionalProperties": False,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                os.environ,
+                {"CREDHUNTER_CACHE_DIR": tmp, "CREDHUNTER_LLM_CACHE": "false", "OPENAI_API_KEY": "x"},
+            ), mock.patch.dict("sys.modules", {"openai": fake_openai}):
+                result = call_llm_json(
+                    "gpt-4o-mini",
+                    "classify",
+                    '{"secret_type": "github_token"}',
+                    "credhunter_classifier",
+                    schema,
+                )
+
+        self.assertEqual(result["classification"], "not_false_positive")
+        request = calls[0]
+        self.assertEqual(request["model"], "gpt-4o-mini")
+        self.assertEqual(request["text"]["format"]["type"], "json_schema")
+        self.assertEqual(request["text"]["format"]["name"], "credhunter_classifier")
+        self.assertTrue(request["text"]["format"]["strict"])
+        self.assertFalse(request["text"]["format"]["schema"]["additionalProperties"])
 
 
 class LLMJsonParsingTests(unittest.TestCase):
